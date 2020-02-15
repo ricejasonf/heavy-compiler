@@ -4257,6 +4257,8 @@ def err_template_param_default_arg_redefinition : Error<
   "template parameter redefines default argument">;
 def note_template_param_prev_default_arg : Note<
   "previous default template argument defined here">;
+def note_heavy_macro_instantiation_here : Note<
+  "in instantiation of heavy_macro %0 requested here">;
 def err_template_param_default_arg_missing : Error<
   "template parameter missing a default argument">;
 def ext_template_parameter_default_in_function_template : ExtWarn<
@@ -10362,5 +10364,19 @@ def warn_sycl_kernel_num_of_function_params : Warning<
 def warn_sycl_kernel_return_type : Warning<
   "function template with 'sycl_kernel' attribute must have a 'void' return type">,
   InGroup<IgnoredAttributes>;
+
+def err_heavy_macro_id : Error<
+  "reference to heavy macro must be called">;
+
+def err_redefinition_of_heavy_macro : Error<
+  "redefinition of heavy macro %0">;
+def err_heavy_macro_vararg : Error<
+  "C style variadic function ellipsis not allowed in heavy macro declarator">;
+def err_heavy_macro_multiple_parameter_packs : Error<
+  "Parametric expression parameter list may contain only one parameter pack">;
+def err_heavy_macro_arg_list_different_arity : Error<
+  "%select{too few|too many}0 arguments for heavy macro">;
+def note_ovl_heavy_macro_candidate : Note<
+    "heavy macro candidate">;
 
 } // end of sema component.

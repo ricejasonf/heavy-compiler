@@ -1118,7 +1118,8 @@ public:
 
   /// Specifies that this declaration is a C++ overloaded non-member.
   void setNonMemberOperator() {
-    assert(getKind() == Function || getKind() == FunctionTemplate);
+    assert(getKind() == Function || getKind() == FunctionTemplate ||
+           getKind() == HeavyMacro);
     assert((IdentifierNamespace & IDNS_Ordinary) &&
            "visible non-member operators should be in ordinary namespace");
     IdentifierNamespace |= IDNS_NonMemberOperator;
@@ -1838,6 +1839,7 @@ public:
     case Decl::Block:
     case Decl::Captured:
     case Decl::ObjCMethod:
+    case Decl::HeavyMacro:
       return true;
     default:
       return getDeclKind() >= Decl::firstFunction &&

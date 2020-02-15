@@ -2153,6 +2153,8 @@ DEF_TRAVERSE_DECL(ParmVarDecl, {
 
 DEF_TRAVERSE_DECL(RequiresExprBodyDecl, {})
 
+DEF_TRAVERSE_DECL(HeavyMacroDecl, {})
+
 #undef DEF_TRAVERSE_DECL
 
 // ----------------- Stmt traversal -----------------
@@ -3458,6 +3460,10 @@ bool RecursiveASTVisitor<Derived>::VisitOMPNontemporalClause(
 //    http://clang.llvm.org/doxygen/classclang_1_1UnaryExprOrTypeTraitExpr.html
 //    http://clang.llvm.org/doxygen/classclang_1_1TypesCompatibleExpr.html
 //    Every class that has getQualifier.
+
+DEF_TRAVERSE_STMT(HeavyMacroIdExpr, {})
+DEF_TRAVERSE_STMT(HeavyMacroCallExpr, {})
+DEF_TRAVERSE_STMT(HeavyAliasIdExpr, {})
 
 #undef DEF_TRAVERSE_STMT
 #undef TRAVERSE_STMT

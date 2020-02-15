@@ -297,6 +297,8 @@ PLACEHOLDER_TYPE(BoundMember, BoundMemberTy)
 // in any of the normal ways an ordinary member could be.
 PLACEHOLDER_TYPE(PseudoObject, PseudoObjectTy)
 
+PLACEHOLDER_TYPE(HeavyMacroId, HeavyMacroIdTy)
+
 // __builtin_any_type.  A placeholder type.  Useful for clients
 // like debuggers that don't know what type to give something.
 // Only a small number of operations are valid on expressions of

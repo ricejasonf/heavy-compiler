@@ -1060,6 +1060,8 @@ public:
   CanQualType SingletonId;
 #include "clang/Basic/AArch64SVEACLETypes.def"
 
+  CanQualType HeavyMacroIdTy;
+
   // Types for deductions in C++0x [stmt.ranged]'s desugaring. Built on demand.
   mutable QualType AutoDeductTy;     // Deduction against 'auto'.
   mutable QualType AutoRRefDeductTy; // Deduction against 'auto &&'.
