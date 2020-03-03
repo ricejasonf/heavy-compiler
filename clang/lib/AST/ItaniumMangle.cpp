@@ -3637,6 +3637,8 @@ recurse:
   case Expr::TypoExprClass:  // This should no longer exist in the AST by now.
   case Expr::OMPArraySectionExprClass:
   case Expr::CXXInheritedCtorInitExprClass:
+  case Expr::HeavyMacroIdExprClass:
+  case Expr::HeavyMacroCallExprClass:
     llvm_unreachable("unexpected statement kind");
 
   case Expr::ConstantExprClass:
@@ -3680,6 +3682,7 @@ recurse:
   case Expr::SourceLocExprClass:
   case Expr::FixedPointLiteralClass:
   case Expr::BuiltinBitCastExprClass:
+  case Expr::HeavyMacroCallExprClass:
   {
     if (!NullOut) {
       // As bad as this diagnostic is, it's better than crashing.

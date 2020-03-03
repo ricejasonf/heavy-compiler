@@ -3165,6 +3165,10 @@ private:
                                  unsigned ArgumentIndex) override;
   void CodeCompleteIncludedFile(llvm::StringRef Dir, bool IsAngled) override;
   void CodeCompleteNaturalLanguage() override;
+
+
+  DeclGroupPtrTy ParseHeavyMacroDeclaration(
+      DeclaratorContext Context);
 };
 
 }  // end namespace clang

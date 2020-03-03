@@ -2127,6 +2127,16 @@ void StmtProfiler::VisitTemplateArgument(const TemplateArgument &Arg) {
   }
 }
 
+void StmtProfiler::VisitHeavyMacroIdExpr(
+                                const HeavyMacroIdExpr *S) {
+  VisitExpr(S);
+}
+
+void StmtProfiler::VisitHeavyMacroCallExpr(
+                              const HeavyMacroCallExpr *S) {
+  VisitExpr(S);
+}
+
 void Stmt::Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
                    bool Canonical) const {
   StmtProfilerWithPointers Profiler(ID, Context, Canonical);

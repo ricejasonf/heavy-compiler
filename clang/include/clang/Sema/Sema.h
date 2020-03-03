@@ -2764,6 +2764,10 @@ public:
   /// in a 'block', this returns the containing context.
   NamedDecl *getCurFunctionOrMethodDecl();
 
+  /// getCurHeavyMacroDecl - If inside of a parametric expression body,
+  /// this returns a pointer to the decl being parsed.
+  HeavyMacroDecl *getCurHeavyMacroDecl();
+
   /// Add this decl to the scope shadowed decl chains.
   void PushOnScopeChains(NamedDecl *D, Scope *S, bool AddToContext = true);
 
@@ -3221,6 +3225,10 @@ public:
                                 TemplateArgumentListInfo *ExplicitTemplateArgs,
                                             OverloadCandidateSet& CandidateSet,
                                             bool PartialOverloading = false);
+  void AddHeavyMacroCandidate(HeavyMacroDecl *PD,
+                              DeclAccessPair FoundDecl,
+                              OverloadCandidateSet& CandidateSet);
+
 
   // Emit as a 'note' the specific overload candidate
   void NoteOverloadCandidate(
@@ -6219,6 +6227,27 @@ public:
   /// function or another callable function-like entity (e.g. a function
   // template or overload set) for any substitution.
   bool IsDependentFunctionNameExpr(Expr *E);
+
+  // HeavyMacro stuff
+  HeavyMacroDecl *ActOnHeavyMacroDecl(
+                        Scope *S, Scope *BodyScope
+                        SourceLocation StartLoc);
+  Decl *ActOnFinishHeavyMacroDecl(
+                        HeavyMacroDecl* D,
+                        ExprResult ExprResult);
+
+  ExprResult ActOnHeavyMacroCallExpr(
+                        HeavyMacroIdExpr *Fn,
+                        ArrayRef<Expr*> ArgExprs, SourceLocation LParenLoc);
+  ExprResult ActOnHeavyMacroCallExpr(
+                        HeavyMacroDecl *D,
+                        ArrayRef<Expr*> ArgExprs,
+                        SourceLocation Loc);
+  ExprResult BuildHeavyMacroCallExpr(
+                        SourceLocation BeginLoc, CompoundStmt *Body,
+                        ArrayRef<HeavyMacroParam*> Params);
+  HeavyMacroParamDecl *BuildHeavyMacroParam(
+                        HeavyMacroParamDecl *OldParam, Expr *ArgExpr);
 
 private:
   /// Caches pairs of template-like decls whose associated constraints were

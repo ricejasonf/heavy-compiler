@@ -2507,6 +2507,17 @@ void StmtPrinter::VisitAsTypeExpr(AsTypeExpr *Node) {
   OS << ")";
 }
 
+void StmtPrinter::VisitHeavyMacroIdExpr(
+                                 HeavyMacroIdExpr *Node) {
+  OS << Node->getDefinitionDecl()->getName();
+}
+
+void StmtPrinter::VisitHeavyMacroCallExpr(
+                               HeavyMacroCallExpr *Node) {
+  // TODO print the call expr with the original arguments
+  llvm_unreachable("TODO print HeavyMacroCallExpr");
+}
+
 //===----------------------------------------------------------------------===//
 // Stmt method implementations
 //===----------------------------------------------------------------------===//

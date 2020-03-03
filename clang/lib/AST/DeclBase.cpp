@@ -702,6 +702,8 @@ unsigned Decl::getIdentifierNamespaceForKind(Kind DeclKind) {
     case ObjCMethod:
     case ObjCProperty:
     case MSProperty:
+    case HeavyMacro:
+      return IDNS_Ordinary;
       return IDNS_Ordinary;
     case Label:
       return IDNS_Label;
@@ -1095,6 +1097,9 @@ bool DeclContext::isDependentContext() const {
   if (isa<ClassTemplatePartialSpecializationDecl>(this))
     return true;
 
+  if (isa<HeavyMacroDecl>(this))
+    return true;
+
   if (const auto *Record = dyn_cast<CXXRecordDecl>(this)) {
     if (Record->getDescribedClassTemplate())
       return true;
@@ -1179,6 +1184,7 @@ DeclContext *DeclContext::getPrimaryContext() {
   case Decl::OMPDeclareReduction:
   case Decl::OMPDeclareMapper:
   case Decl::RequiresExprBody:
+  case Decl::HeavyMacro:
     // There is only one DeclContext for these entities.
     return this;
 

@@ -52,11 +52,6 @@
 namespace clang {
 
 class ASTContext;
-class DeclAccessPair;
-class IdentifierInfo;
-class LambdaCapture;
-class NonTypeTemplateParmDecl;
-class TemplateParameterList;
 
 //===--------------------------------------------------------------------===//
 // Heavy Expressions.
@@ -111,39 +106,44 @@ public:
 class HeavyMacroCallExpr : public Expr {
   SourceLocation BeginLoc;
   HeavyMacroDecl* TheDecl
-  HeavyAlias** ParamInfo;
+  HeavyAlias** ArgInfo;
   Expr* Body;
-  unsigned NumParams = 0;
+  unsigned NumArgs = 0;
 
-  HeavyMacroCallExpr(SourceLocation BL,
-                               QualType QT, ExprValueKind VK)
+  HeavyMacroCallExpr(SourceLocation BL, QualType QT, ExprValueKind VK)
     : Expr(HeavyMacroCallExprClass, QT, VK, OK_Ordinary,
            false, false, false, false),
       BeginLoc(BL) {}
 public:
-  static HeavyMacroCallExpr *Create(ASTContext &C, SourceLocation BL,
-                                              HeavyMacroDecl D,
-                                              //QualType QT, ExprValueKind VK,
-                                              ArrayRef<Expr *> Args);
+  static HeavyMacroCallExpr *Create(
+                  ASTContext &C, SourceLocation BL,
+                  HeavyMacroDecl* D,
+                  QualType QT, ExprValueKind VK,
+                  ArrayRef<Expr *> Args);
+  static HeavyMacroCallExpr *CreateDependent(
+                  ASTContext &C, SourceLocation BL,
+                  HeavyMacroDecl* D,
+                  QualType QT, ExprValueKind VK,
+                  ArrayRef<Expr *> Args);
 
   static bool hasDependentArgs(ArrayRef<Expr *> Args);
 
-  void setParams(ASTContext &C, ArrayRef<ParmVarDecl *> NewParamInfo);
-  unsigned getNumParams() const { return NumParams; }
+  void setArgs(ASTContext &C, ArrayRef<HeavyAlias*> NewArgInfo);
+  unsigned getNumArgs() const { return NumArgs; }
 
   // ArrayRef interface to parameters.
-  ArrayRef<ParmVarDecl *> parameters() const {
-    return {ParamInfo, getNumParams()};
+  ArrayRef<HeavyAlias*> parameters() const {
+    return {ArgInfo, getNumArgs()};
   }
   MutableArrayRef<ParmVarDecl *> parameters() {
-    return {ParamInfo, getNumParams()};
+    return {ArgInfo, getNumArgs()};
   }
 
   ArrayRef<Expr *> getArgs() const {
-    return {Args, NumParams};
+    return {Args, NumArgs};
   }
   MutableArrayRef<Expr *> getArgs() {
-    return {Args, NumParams};
+    return {Args, NumArgs};
   }
 
   // Iterators

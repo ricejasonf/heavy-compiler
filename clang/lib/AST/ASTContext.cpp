@@ -1511,6 +1511,9 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
 
   // Builtin type used to help define __builtin_va_list.
   VaListTagDecl = nullptr;
+
+  // Placeholder type for heavy macro id.
+  InitBuiltinType(HeavyMacroIdTy, BuiltinType::HeavyMacroId);
 }
 
 DiagnosticsEngine &ASTContext::getDiagnostics() const {
