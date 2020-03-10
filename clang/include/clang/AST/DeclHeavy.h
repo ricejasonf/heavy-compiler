@@ -44,7 +44,7 @@ class HeavyMacroDecl : public NamedDecl,
 
 public:
   static HeavyMacroDecl *Create(ASTContext &C, DeclContext *DC,
-                                DeclarationName DN)
+                                DeclarationName DN);
 
   static HeavyMacroDecl *Create(ASTContext &C, DeclContext *DC,
                                 HeavyMacroDecl* Old);
@@ -76,16 +76,18 @@ public:
 class HeavyAliasDecl : public NamedDecl {
   Expr* Body;
 
-public:
   HeavyAliasDecl(DeclContext* DC, DeclarationName DN, SourceLocation SL
     : NamedDecl(HeavyAlias, DC, SL, DN)
   {}
+public:
+  static HeavyMacroDecl *Create(ASTContext &C, DeclContext *DC,
+                                DeclarationName DN);
 
-  void setBody(Stmt *S) {
-    Body = S;
+  void setBody(Expr *S) {
+    Expr = S;
   }
 
-  Stmt* getBody() const {
+  Expr* getBody() const {
     return Body;
   }
 
