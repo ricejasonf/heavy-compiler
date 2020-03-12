@@ -184,6 +184,12 @@ LANGSTANDARD(cuda, "cuda", CUDA, "NVIDIA CUDA(tm)",
 LANGSTANDARD(hip, "hip", HIP, "HIP",
              LineComment | CPlusPlus | Digraphs)
 
+// HEAVY
+LANGSTANDARD(heavy, "heavy",
+             HEAVY, "Heavy",
+             LineComment | CPlusPlus | CPlusPlus11 | CPlusPlus14 | CPlusPlus17 |
+             CPlusPlus2a | Digraphs | HexFloat)
+
 #undef LANGSTANDARD
 #undef LANGSTANDARD_ALIAS
 #undef LANGSTANDARD_ALIAS_DEPR

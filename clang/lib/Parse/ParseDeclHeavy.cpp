@@ -27,54 +27,31 @@
 using namespace clang;
 
 // TODO 
-//      - Add keywords for Heavy specific declarations
-//      - Remove compound statement stuff
-//      - Remove static stuff
-//      - Add ParseHeavyMacroParamList()
+//      - Update calls to Actions when Sema is ready
 //
 
 Parser::DeclGroupPtrTy
 Parser::ParseHeavyMacroDeclaration(
                               DeclaratorContext Context,
                               AccessSpecifier AS) {
-  if (!getLangOpts().CPlusPlus2a) {
-    Diag(Tok.getLocation(),
-         diag::warn_cxx2a_compat_heavy_macro_declaration);
-  }
-
-  // Declaration Specifiers
-  //
-  // must be `using` or `static using` for static members
-  // Consider adding this to ParseDeclarationSpecifiers.
-
   SourceLocation BeginLoc;
 
-  // consume kw_using
+  // Keyword heavy_macro
+
   SourceLocation UsingLoc;
-  if (!TryConsumeToken(tok::kw_using, UsingLoc)) {
-    llvm_unreachable("Token was expected to be kw_using");
+  if (!TryConsumeToken(tok::kw_heavy_macro, UsingLoc)) {
+    llvm_unreachable("Token was expected to be kw_heavy_macro");
   }
-
-
-  // I don't think we need Declarator
-  DeclSpec DS(AttrFactory);
-  Declarator D(DS, DeclaratorContext::HeavyMacroContext);
 
   // Name
-  //
-  // Either an identifier or an operator function id
 
-  CXXScopeSpec Spec;
-  UnqualifiedId &Name = D.getName();
-  if (ParseUnqualifiedId(
-          Spec,
-          /*EnteringContext=*/false,
-          /*AllowDestructorName=*/false,
-          /*AllowConstructorName=*/false,
-          /*AllowDeductionGuide=*/false,
-          nullptr, nullptr, Name)) {
-    return nullptr;
+  if (Tok.isNot(tok::identifier)) {
+    Diag(Tok, diag::err_expected) << tok::identifier;
+    SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+    return;
   }
+  DeclarationName Name(Tok.getIdentifierInfo());
+  ConsumeToken();
 
   if (Name.getKind() != UnqualifiedIdKind::IK_Identifier) {
     Diag(Name.getBeginLoc(), diag::err_heavy_macro_name_invalid)
@@ -83,15 +60,12 @@ Parser::ParseHeavyMacroDeclaration(
     return nullptr;
   }
 
+  HeavyMacroDecl *New = Actions.ActOnHeavyMacroDecl(S, getCurScope(), Name,
+                                                    BeginLoc);
+
   // Params
 
   Scope* S = getCurScope();
-
-  // TODO ascertain whether we still need to fake a function scope
-  ParseScope PrototypeScope(this,
-                            Scope::FunctionPrototypeScope |
-                            Scope::FunctionDeclarationScope |
-                            Scope::DeclScope);
 
   BalancedDelimiterTracker T(*this, tok::l_paren);
   T.consumeOpen();
@@ -99,31 +73,30 @@ Parser::ParseHeavyMacroDeclaration(
   // Parse parameter-declaration-clause.
   SmallVector<DeclaratorChunk::ParamInfo, 16> ParamInfo;
 
-  HeavyMacroDecl *New = Actions.ActOnHeavyMacroDecl(
-                                               S, getCurScope(), AS,
-                                               BeginLoc,
-                                               TemplateParameterDepth, D,
-                                               IsPackOp);
-
   if (!New)
     return nullptr;
 
   Actions.PushDeclContext(Actions.getCurScope(), New);
   ParseHeavyMacroParamList(New, ParamInfo);
   T.consumeClose();
-  PrototypeScope.Exit();
 
   // Body
 
+  // Fake the func (scope that is)
   Actions.PushFunctionScope();
-  ParseScope BodyScope(this, Scope::FnScope | Scope::DeclScope |
-                             Scope::CompoundStmtScope);
-  // TODO parse just an expr (not sure which function to call yet)
-  StmtResult CSResult = ParseCompoundStatement();
-  Decl *TheDecl = Actions.ActOnFinishHeavyMacroDecl(New, NeedsRAII, CSResult);
+  ParseScope BodyScope(this, Scope::FnScope | Scope::DeclScope);
+
+  ExprResult BodyResult = ParseExpression();
+
+  Decl *TheDecl = Actions.ActOnFinishHeavyMacroDecl(New, Name, ParamInfo,
+                                                    BodyResult);
   Actions.PopDeclContext();
   BodyScope.Exit();
   Actions.PopFunctionScopeInfo();
+
+  // Semicolon
+
+  ExpectAndConsumeSemi(diag::err_expected_semi_after_expr);
 
   return Actions.ConvertDeclToDeclGroup(TheDecl);
 }

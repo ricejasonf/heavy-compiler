@@ -851,6 +851,11 @@ ANNOTATION(module_end)
 // into the name of a header unit.
 ANNOTATION(header_unit)
 
+// Keywwords for Heavy
+KEYWORD(heavy_macro,  KEYHEAVY)
+KEYWORD(heavy_define, KEYHEAVY)
+KEYWORD(heavy_syntax, KEYHEAVY)
+
 #undef PRAGMA_ANNOTATION
 #undef ANNOTATION
 #undef TESTING_KEYWORD
