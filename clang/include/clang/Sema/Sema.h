@@ -3225,6 +3225,7 @@ public:
                                 TemplateArgumentListInfo *ExplicitTemplateArgs,
                                             OverloadCandidateSet& CandidateSet,
                                             bool PartialOverloading = false);
+  // FIXME erm I don't think this is needed since we aren't supporting operator overloading
   void AddHeavyMacroCandidate(HeavyMacroDecl *PD,
                               DeclAccessPair FoundDecl,
                               OverloadCandidateSet& CandidateSet);
@@ -6230,24 +6231,25 @@ public:
 
   // HeavyMacro stuff
   HeavyMacroDecl *ActOnHeavyMacroDecl(
-                        Scope *S, Scope *BodyScope
-                        SourceLocation StartLoc);
-  Decl *ActOnFinishHeavyMacroDecl(
+                        Scope *S,
+                        SourceLocation StartLoc,
+                        DeclarationName Name);
+  HeavyMacroDecl *ActOnFinishHeavyMacroDecl(
                         HeavyMacroDecl* D,
-                        ExprResult ExprResult);
+                        const SmallVectorImpl<HeavyAliasDecl*>& ParamInfo,
+                        ExprResult BodyResult);
 
   ExprResult ActOnHeavyMacroCallExpr(
                         HeavyMacroIdExpr *Fn,
-                        ArrayRef<Expr*> ArgExprs, SourceLocation LParenLoc);
+                        ArrayRef<Expr*> ArgExprs,
+                        SourceLocation LParenLoc);
   ExprResult ActOnHeavyMacroCallExpr(
                         HeavyMacroDecl *D,
                         ArrayRef<Expr*> ArgExprs,
                         SourceLocation Loc);
   ExprResult BuildHeavyMacroCallExpr(
-                        SourceLocation BeginLoc, CompoundStmt *Body,
+                        SourceLocation BeginLoc, Expr *Body,
                         ArrayRef<HeavyMacroParam*> Params);
-  HeavyMacroParamDecl *BuildHeavyMacroParam(
-                        HeavyMacroParamDecl *OldParam, Expr *ArgExpr);
 
 private:
   /// Caches pairs of template-like decls whose associated constraints were

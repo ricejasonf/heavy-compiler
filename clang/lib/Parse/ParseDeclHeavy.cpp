@@ -60,18 +60,17 @@ Parser::ParseHeavyMacroDeclaration(
     return nullptr;
   }
 
+  Scope* S = getCurScope();
   HeavyMacroDecl *New = Actions.ActOnHeavyMacroDecl(S, getCurScope(), Name,
                                                     BeginLoc);
 
   // Params
 
-  Scope* S = getCurScope();
-
   BalancedDelimiterTracker T(*this, tok::l_paren);
   T.consumeOpen();
 
   // Parse parameter-declaration-clause.
-  SmallVector<DeclaratorChunk::ParamInfo, 16> ParamInfo;
+  SmallVector<HeavyAliasDecl, 16> ParamInfo;
 
   if (!New)
     return nullptr;
@@ -88,7 +87,7 @@ Parser::ParseHeavyMacroDeclaration(
 
   ExprResult BodyResult = ParseExpression();
 
-  Decl *TheDecl = Actions.ActOnFinishHeavyMacroDecl(New, Name, ParamInfo,
+  Decl *TheDecl = Actions.ActOnFinishHeavyMacroDecl(New, ParamInfo,
                                                     BodyResult);
   Actions.PopDeclContext();
   BodyScope.Exit();
