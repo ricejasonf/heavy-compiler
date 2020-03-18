@@ -31,9 +31,7 @@ using namespace clang;
 //
 
 Parser::DeclGroupPtrTy
-Parser::ParseHeavyMacroDeclaration(
-                              DeclaratorContext Context,
-                              AccessSpecifier AS) {
+Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
   SourceLocation BeginLoc;
 
   // Keyword heavy_macro

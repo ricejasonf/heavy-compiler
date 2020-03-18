@@ -1777,6 +1777,9 @@ Parser::ParseDeclaration(DeclaratorContext Context, SourceLocation &DeclEnd,
     ProhibitAttributes(attrs);
     SingleDecl = ParseStaticAssertDeclaration(DeclEnd);
     break;
+  case tok::kw_heavy_macro:
+    SingleDecl = ParseHeavyMacroDeclaration(Context);
+    break;
   default:
     return ParseSimpleDeclaration(Context, DeclEnd, attrs, true, nullptr,
                                   DeclSpecStart);
