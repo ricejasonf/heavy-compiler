@@ -243,6 +243,12 @@ serialization::TypeIdxFromBuiltin(const BuiltinType *BT) {
   case BuiltinType::OMPArraySection:
     ID = PREDEF_TYPE_OMP_ARRAY_SECTION;
     break;
+  case BuiltinType::HeavyMacroId:
+    ID = PREDEF_TYPE_HEAVY_MACRO_ID;
+    break;
+  case BuiltinType::HeavyAliasId:
+    ID = PREDEF_TYPE_HEAVY_ALIAS_ID;
+    break;
   }
 
   return TypeIdx(ID);
@@ -403,6 +409,8 @@ bool serialization::isRedeclarableDeclKind(unsigned Kind) {
   case Decl::Concept:
   case Decl::LifetimeExtendedTemporary:
   case Decl::RequiresExprBody:
+  case Decl::HeavyMacro:
+  case Decl::HeavyAlias:
     return false;
 
   // These indirectly derive from Redeclarable<T> but are not actually

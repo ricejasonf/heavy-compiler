@@ -23,6 +23,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/ExprHeavy.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExternalASTSource.h"
 #include "clang/AST/LocInfoType.h"
@@ -6249,7 +6250,7 @@ public:
                         SourceLocation Loc);
   ExprResult BuildHeavyMacroCallExpr(
                         SourceLocation BeginLoc, Expr *Body,
-                        ArrayRef<HeavyMacroParam*> Params);
+                        ArrayRef<HeavyAliasDecl*> Params);
 
 private:
   /// Caches pairs of template-like decls whose associated constraints were

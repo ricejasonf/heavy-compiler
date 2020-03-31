@@ -1016,6 +1016,9 @@ namespace serialization {
       /// \brief The placeholder type of a heavy macro name
       PREDEF_TYPE_HEAVY_MACRO_ID = 70,
 
+      /// \brief The placeholder type of a heavy alias name
+      PREDEF_TYPE_HEAVY_ALIAS_ID = 71,
+
       /// OpenCL image types with auto numeration
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
       PREDEF_TYPE_##Id##_ID,
@@ -1424,11 +1427,15 @@ namespace serialization {
       /// An OMPDeclareMapperDecl record.
       DECL_OMP_DECLARE_MAPPER,
 
+      // A HeavyMacroDecl record
+      DECL_HEAVY_MACRO,
+      //
+      // A HeavyAliasDecl record
+      DECL_HEAVY_ALIAS,
+
       /// An OMPDeclareReductionDecl record.
       DECL_OMP_DECLARE_REDUCTION,
 
-      // A HeavyMacroDecl record
-      DECL_HEAVY_MACRO,
 
       DECL_LAST = DECL_OMP_DECLARE_REDUCTION
     };

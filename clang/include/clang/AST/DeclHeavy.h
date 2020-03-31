@@ -30,61 +30,18 @@
 
 namespace clang {
 
-// HeavyMacroDecl
-class HeavyMacroDecl : public NamedDecl,
-                       public DeclContext {
-  Expr *Body = nullptr;
-  HeavyAlias **ParamInfo = nullptr;
-  unsigned NumParams = 0;
-
-  HeavyMacroDecl(DeclContext *DC, DeclarationName DN,
-                 SourceLocation StartL)
-    : NamedDecl(HeavyMacro, DC, StartL, DN)
-    , DeclContext(HeavyMacro) {}
-
-public:
-  static HeavyMacroDecl *Create(ASTContext &C, DeclContext *DC,
-                                DeclarationName DN);
-
-  static HeavyMacroDecl *Create(ASTContext &C, DeclContext *DC,
-                                HeavyMacroDecl* Old);
-
-  void setBody(Stmt *S) {
-    Body = S;
-  }
-
-  Stmt* getBody() const {
-    return Body;
-  }
-
-  void setParams(ASTContext &C, ArrayRef<HeavyAlias *> NewParamInfo);
-  unsigned getNumParams() const { return NumParams; }
-
-  // ArrayRef interface to parameters.
-  ArrayRef<ParmVarDecl *> parameters() const {
-    return {ParamInfo, getNumParams()};
-  }
-  MutableArrayRef<ParmVarDecl *> parameters() {
-    return {ParamInfo, getNumParams()};
-  }
-
-  // Implement isa/cast/dyncast/etc.
-  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
-  static bool classofKind(Kind K) { return K == HeavyMacro; }
-};
-
 class HeavyAliasDecl : public NamedDecl {
   Expr* Body;
 
-  HeavyAliasDecl(DeclContext* DC, DeclarationName DN, SourceLocation SL
+  HeavyAliasDecl(DeclContext* DC, DeclarationName DN, SourceLocation SL)
     : NamedDecl(HeavyAlias, DC, SL, DN)
   {}
 public:
-  static HeavyMacroDecl *Create(ASTContext &C, DeclContext *DC,
-                                DeclarationName DN);
+  static HeavyAliasDecl *Create(ASTContext &C, DeclContext *DC,
+                                DeclarationName DN, SourceLocation SL);
 
   void setBody(Expr *S) {
-    Expr = S;
+    Body = S;
   }
 
   Expr* getBody() const {
@@ -94,7 +51,49 @@ public:
   // Implement isa/cast/dyncast/etc.
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == HeavyAlias; }
-}
+};
+
+class HeavyMacroDecl : public NamedDecl,
+                       public DeclContext {
+  Expr *Body = nullptr;
+  HeavyAliasDecl **ParamInfo = nullptr;
+  unsigned NumParams = 0;
+
+  HeavyMacroDecl(DeclContext *DC, DeclarationName DN,
+                 SourceLocation StartL)
+    : NamedDecl(HeavyMacro, DC, StartL, DN)
+    , DeclContext(HeavyMacro) {}
+
+public:
+  static HeavyMacroDecl *Create(ASTContext &C, DeclContext *DC,
+                                DeclarationName DN, SourceLocation SL);
+
+  static HeavyMacroDecl *Create(ASTContext &C, DeclContext *DC,
+                                HeavyMacroDecl* Old);
+
+  void setBody(Expr *E) {
+    Body = E;
+  }
+
+  Stmt* getBody() const {
+    return Body;
+  }
+
+  void setParams(ASTContext &C, ArrayRef<HeavyAliasDecl *> NewParamInfo);
+  unsigned getNumParams() const { return NumParams; }
+
+  // ArrayRef interface to parameters.
+  ArrayRef<HeavyAliasDecl *> parameters() const {
+    return {ParamInfo, getNumParams()};
+  }
+  MutableArrayRef<HeavyAliasDecl *> parameters() {
+    return {ParamInfo, getNumParams()};
+  }
+
+  // Implement isa/cast/dyncast/etc.
+  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+  static bool classofKind(Kind K) { return K == HeavyMacro; }
+};
 
 } // namespace clang
 

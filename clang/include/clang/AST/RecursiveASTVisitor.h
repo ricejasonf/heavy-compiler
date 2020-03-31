@@ -18,6 +18,7 @@
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclHeavy.h"
 #include "clang/AST/DeclFriend.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclOpenMP.h"
@@ -25,6 +26,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/ExprHeavy.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExprOpenMP.h"
 #include "clang/AST/LambdaCapture.h"
@@ -2154,6 +2156,7 @@ DEF_TRAVERSE_DECL(ParmVarDecl, {
 DEF_TRAVERSE_DECL(RequiresExprBodyDecl, {})
 
 DEF_TRAVERSE_DECL(HeavyMacroDecl, {})
+DEF_TRAVERSE_DECL(HeavyAliasDecl, {})
 
 #undef DEF_TRAVERSE_DECL
 

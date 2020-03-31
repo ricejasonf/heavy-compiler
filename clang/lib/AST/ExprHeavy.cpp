@@ -39,47 +39,29 @@ using namespace clang;
 HeavyMacroCallExpr*
 HeavyMacroCallExpr::Create(
                     ASTContext &C, SourceLocation BL,
-                    HeavyMacroDecl* D
+                    HeavyMacroDecl* D,
                     Expr* Body,
                     QualType QT, ExprValueKind VK,
-                    ArrayRef<HeavyAlias*> Args) {
+                    ArrayRef<Expr*> Args) {
   HeavyMacroCallExpr* New = new (C) HeavyMacroCallExpr(BL, QT, VK);
   New->NumArgs = Args.size();
 
   if (!Args.empty()) {
-    New->ArgInfo = new (C) HeavyAlias*[Args.size()];
+    New->ArgInfo = new (C) Expr*[Args.size()];
     std::copy(Args.begin(), Args.end(), New->ArgInfo);
   }
 
-  New->Args = new (C) Expr*[Args.size()];
+  New->ArgInfo = new (C) Expr*[Args.size()];
 
   New->Body = Body;
   for (unsigned I = 0; I < Args.size(); ++I) {
-    New->Args[I] = Args[I]->getInit();
-    if (New->Args[I]->containsUnexpandedParameterPack())
-      New->setContainsUnexpandedParameterPack(true);
-  }
-
-  return New;
-}
-
-HeavyMacroCallExpr*
-HeavyMacroCallExpr::CreateDependent(
-                    ASTContext &C, SourceLocation BL,
-                    HeavyMacroDecl* D,
-                    ArrayRef<Expr*> CallArgs) {
-  HeavyMacroCallExpr*
-  New = new (C) HeavyMacroCallExpr(BL, C.DependentTy, D,
-                                   CallArgs);
-
-  for (unsigned I = 0; I < CallArgs.size(); ++I) {
-    if (CallArgs[I]->isTypeDependent())
+    if (Args[I]->isTypeDependent())
       New->setTypeDependent(true);
-    if (CallArgs[I]->isValueDependent())
+    if (Args[I]->isValueDependent())
       New->setValueDependent(true);
-    if (CallArgs[I]->isInstantiationDependent())
+    if (Args[I]->isInstantiationDependent())
       New->setInstantiationDependent(true);
-    if (CallArgs[I]->containsUnexpandedParameterPack())
+    if (Args[I]->containsUnexpandedParameterPack())
       New->setContainsUnexpandedParameterPack(true);
   }
 

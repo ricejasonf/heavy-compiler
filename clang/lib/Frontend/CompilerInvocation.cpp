@@ -2267,6 +2267,9 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
     case Language::HIP:
       LangStd = LangStandard::lang_hip;
       break;
+    case Language::Heavy:
+      LangStd = LangStandard::lang_heavy;
+      break;
     }
   }
 
@@ -2405,6 +2408,10 @@ static bool IsInputCompatibleWithStandard(InputKind IK,
     // FIXME: The -std= value is not ignored; it affects the tokenization
     // and preprocessing rules if we're preprocessing this asm input.
     return true;
+
+  case Language::Heavy:
+    return S.getLanguage() == Language::CXX ||
+           S.getLanguage() == Language::Heavy;
   }
 
   llvm_unreachable("unexpected input language");
@@ -2429,6 +2436,8 @@ static const StringRef GetInputKindName(InputKind IK) {
     return "RenderScript";
   case Language::HIP:
     return "HIP";
+  case Language::Heavy:
+    return "Heavy";
 
   case Language::Asm:
     return "Asm";

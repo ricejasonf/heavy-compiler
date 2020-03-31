@@ -298,6 +298,7 @@ PLACEHOLDER_TYPE(BoundMember, BoundMemberTy)
 PLACEHOLDER_TYPE(PseudoObject, PseudoObjectTy)
 
 PLACEHOLDER_TYPE(HeavyMacroId, HeavyMacroIdTy)
+PLACEHOLDER_TYPE(HeavyAliasId, HeavyAliasIdTy)
 
 // __builtin_any_type.  A placeholder type.  Useful for clients
 // like debuggers that don't know what type to give something.

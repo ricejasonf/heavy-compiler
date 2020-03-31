@@ -6955,6 +6955,12 @@ QualType ASTReader::GetType(TypeID ID) {
     case PREDEF_TYPE_OMP_ARRAY_SECTION:
       T = Context.OMPArraySectionTy;
       break;
+    case PREDEF_TYPE_HEAVY_MACRO_ID:
+      T = Context.HeavyMacroIdTy;
+      break;
+    case PREDEF_TYPE_HEAVY_ALIAS_ID:
+      T = Context.HeavyAliasIdTy;
+      break;
 #define SVE_TYPE(Name, Id, SingletonId) \
     case PREDEF_TYPE_##Id##_ID: \
       T = Context.SingletonId; \

@@ -3167,8 +3167,10 @@ private:
   void CodeCompleteNaturalLanguage() override;
 
 
-  DeclGroupPtrTy ParseHeavyMacroDeclaration(
+  Decl *ParseHeavyMacroDeclaration(
       DeclaratorContext Context);
+  void ParseHeavyMacroParamList(
+      SmallVectorImpl<HeavyAliasDecl*> &ParamInfo);
 };
 
 }  // end namespace clang

@@ -1061,6 +1061,7 @@ public:
 #include "clang/Basic/AArch64SVEACLETypes.def"
 
   CanQualType HeavyMacroIdTy;
+  CanQualType HeavyAliasIdTy;
 
   // Types for deductions in C++0x [stmt.ranged]'s desugaring. Built on demand.
   mutable QualType AutoDeductTy;     // Deduction against 'auto'.

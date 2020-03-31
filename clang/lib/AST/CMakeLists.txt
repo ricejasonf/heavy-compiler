@@ -40,6 +40,7 @@ add_clang_library(clangAST
   DeclCXX.cpp
   DeclFriend.cpp
   DeclGroup.cpp
+  DeclHeavy.cpp
   DeclObjC.cpp
   DeclOpenMP.cpp
   DeclPrinter.cpp
@@ -49,6 +50,7 @@ add_clang_library(clangAST
   ExprConcepts.cpp
   ExprConstant.cpp
   ExprCXX.cpp
+  ExprHeavy.cpp
   ExprObjC.cpp
   ExternalASTMerger.cpp
   ExternalASTSource.cpp

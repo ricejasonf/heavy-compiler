@@ -1514,6 +1514,7 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
 
   // Placeholder type for heavy macro id.
   InitBuiltinType(HeavyMacroIdTy, BuiltinType::HeavyMacroId);
+  InitBuiltinType(HeavyAliasIdTy, BuiltinType::HeavyAliasId);
 }
 
 DiagnosticsEngine &ASTContext::getDiagnostics() const {

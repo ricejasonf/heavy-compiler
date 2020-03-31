@@ -186,7 +186,7 @@ LANGSTANDARD(hip, "hip", HIP, "HIP",
 
 // HEAVY
 LANGSTANDARD(heavy, "heavy",
-             HEAVY, "Heavy",
+             Heavy, "Heavy",
              LineComment | CPlusPlus | CPlusPlus11 | CPlusPlus14 | CPlusPlus17 |
              CPlusPlus2a | Digraphs | HexFloat)
 

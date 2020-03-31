@@ -267,6 +267,6 @@ def OMPTargetTeamsDistributeParallelForSimdDirective : StmtNode<OMPLoopDirective
 def OMPTargetTeamsDistributeSimdDirective : StmtNode<OMPLoopDirective>;
 
 // Heavy expressions
-def HeavyMacroIdExpr : DStmt<Expr>;
-def HeavyMacroCallExpr : DStmt<Expr>;
-def HeavyAliasIdExpr : DStmt<Expr>;
+def HeavyMacroIdExpr : StmtNode<Expr>;
+def HeavyMacroCallExpr : StmtNode<Expr>;
+def HeavyAliasIdExpr : StmtNode<Expr>;

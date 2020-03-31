@@ -3638,7 +3638,7 @@ recurse:
   case Expr::OMPArraySectionExprClass:
   case Expr::CXXInheritedCtorInitExprClass:
   case Expr::HeavyMacroIdExprClass:
-  case Expr::HeavyMacroCallExprClass:
+  case Expr::HeavyAliasIdExprClass:
     llvm_unreachable("unexpected statement kind");
 
   case Expr::ConstantExprClass:

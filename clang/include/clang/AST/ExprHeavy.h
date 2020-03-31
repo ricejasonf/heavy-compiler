@@ -17,6 +17,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclHeavy.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
@@ -72,19 +73,12 @@ class HeavyMacroIdExpr : public Expr {
 
 public:
   static HeavyMacroIdExpr *Create(ASTContext &C, SourceLocation BL,
-                                            HeavyMacroDecl *D,
-                                            Expr* Base = nullptr) {
+                                            HeavyMacroDecl *D) {
     return new (C) HeavyMacroIdExpr(BL, C.HeavyMacroIdTy,
-                                              D, Base);
+                                              D);
   }
 
   HeavyMacroDecl *getDefinitionDecl() { return DefinitionDecl; }
-
-  Expr *getBaseExpr() { return BaseExpr; };
-
-  void setIsPackOpAnnotated(bool Value = true) {
-    IsPackOpAnnotated = Value;
-  }  
 
   // Iterators
   child_range children() {
@@ -105,8 +99,8 @@ public:
 //
 class HeavyMacroCallExpr : public Expr {
   SourceLocation BeginLoc;
-  HeavyMacroDecl* TheDecl
-  HeavyAlias** ArgInfo;
+  HeavyMacroDecl* TheDecl;
+  Expr** ArgInfo;
   Expr* Body;
   unsigned NumArgs = 0;
 
@@ -118,32 +112,20 @@ public:
   static HeavyMacroCallExpr *Create(
                   ASTContext &C, SourceLocation BL,
                   HeavyMacroDecl* D,
-                  QualType QT, ExprValueKind VK,
-                  ArrayRef<Expr *> Args);
-  static HeavyMacroCallExpr *CreateDependent(
-                  ASTContext &C, SourceLocation BL,
-                  HeavyMacroDecl* D,
+                  Expr *Body,
                   QualType QT, ExprValueKind VK,
                   ArrayRef<Expr *> Args);
 
   static bool hasDependentArgs(ArrayRef<Expr *> Args);
 
-  void setArgs(ASTContext &C, ArrayRef<HeavyAlias*> NewArgInfo);
+  void setArgs(ASTContext &C, ArrayRef<Expr*> NewArgInfo);
   unsigned getNumArgs() const { return NumArgs; }
 
-  // ArrayRef interface to parameters.
-  ArrayRef<HeavyAlias*> parameters() const {
-    return {ArgInfo, getNumArgs()};
-  }
-  MutableArrayRef<ParmVarDecl *> parameters() {
-    return {ArgInfo, getNumArgs()};
-  }
-
   ArrayRef<Expr *> getArgs() const {
-    return {Args, NumArgs};
+    return {ArgInfo, NumArgs};
   }
   MutableArrayRef<Expr *> getArgs() {
-    return {Args, NumArgs};
+    return {ArgInfo, NumArgs};
   }
 
   // Iterators
@@ -175,10 +157,8 @@ class HeavyAliasIdExpr : public Expr {
 
 public:
   static HeavyAliasIdExpr *Create(ASTContext &C, SourceLocation BL,
-                                            HeavyAliasDecl *D,
-                                            Expr* Base = nullptr) {
-    return new (C) HeavyAliasIdExpr(BL, C.HeavyAliasIdTy,
-                                              D, Base);
+                                            HeavyAliasDecl *D) {
+    return new (C) HeavyAliasIdExpr(BL, C.HeavyAliasIdTy, D);
   }
 
   HeavyAliasDecl *getDefinitionDecl() { return DefinitionDecl; }

@@ -703,6 +703,7 @@ unsigned Decl::getIdentifierNamespaceForKind(Kind DeclKind) {
     case ObjCProperty:
     case MSProperty:
     case HeavyMacro:
+    case HeavyAlias:
       return IDNS_Ordinary;
       return IDNS_Ordinary;
     case Label:

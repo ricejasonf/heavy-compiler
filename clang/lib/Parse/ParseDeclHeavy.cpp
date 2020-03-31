@@ -13,9 +13,8 @@
 
 #include "clang/Parse/Parser.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/DeclTemplate.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
-#include "clang/Basic/Attributes.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Parse/ParseDiagnostic.h"
@@ -30,7 +29,7 @@ using namespace clang;
 //      - Update calls to Actions when Sema is ready
 //
 
-Parser::DeclGroupPtrTy
+Decl*
 Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
   SourceLocation BeginLoc;
 
@@ -46,21 +45,13 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
   if (Tok.isNot(tok::identifier)) {
     Diag(Tok, diag::err_expected) << tok::identifier;
     SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
-    return;
+    return nullptr;
   }
   DeclarationName Name(Tok.getIdentifierInfo());
   ConsumeToken();
 
-  if (Name.getKind() != UnqualifiedIdKind::IK_Identifier) {
-    Diag(Name.getBeginLoc(), diag::err_heavy_macro_name_invalid)
-      << FixItHint::CreateRemoval(Name.getSourceRange());
-    SkipMalformedDecl();
-    return nullptr;
-  }
-
-  Scope* S = getCurScope();
-  HeavyMacroDecl *New = Actions.ActOnHeavyMacroDecl(S, getCurScope(), Name,
-                                                    BeginLoc);
+  HeavyMacroDecl *New = Actions.ActOnHeavyMacroDecl(getCurScope(),
+                                                    BeginLoc, Name);
 
   // Params
 
@@ -68,13 +59,13 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
   T.consumeOpen();
 
   // Parse parameter-declaration-clause.
-  SmallVector<HeavyAliasDecl, 16> ParamInfo;
+  SmallVector<HeavyAliasDecl*, 16> ParamInfo;
 
   if (!New)
     return nullptr;
 
   Actions.PushDeclContext(Actions.getCurScope(), New);
-  ParseHeavyMacroParamList(New, ParamInfo);
+  ParseHeavyMacroParamList(ParamInfo);
   T.consumeClose();
 
   // Body
@@ -95,14 +86,13 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
 
   ExpectAndConsumeSemi(diag::err_expected_semi_after_expr);
 
-  return Actions.ConvertDeclToDeclGroup(TheDecl);
+  return TheDecl;
 }
 
 void Parser::ParseHeavyMacroParamList(
-    DeclaratorContext DeclaratorCtx,
-    SmallVectorImpl<HeavyAliasDecl> &ParamInfo) {
+    SmallVectorImpl<HeavyAliasDecl*> &ParamInfo) {
   if (ExpectAndConsume(tok::l_paren)) {
-    return nullptr;
+    return;
   }
 
   // Maintain an efficient lookup of params we have seen so far.
@@ -125,8 +115,9 @@ void Parser::ParseHeavyMacroParamList(
       Diag(Tok, diag::err_param_redefinition) << ParmII;
     } else {
       // TODO call ActOnHeavyAliasDecl so it adds it to scope (I think)
-      ParamInfo.push_back(HeavyAliasDecl::create(Actions, DC,
-                                                 DeclarationName(ParmII)
+      ParamInfo.push_back(HeavyAliasDecl::Create(Actions.getASTContext(), 
+                                                 Actions.CurContext,
+                                                 DeclarationName(ParmII),
                                                  Tok.getLocation()));
     }
 
@@ -136,6 +127,6 @@ void Parser::ParseHeavyMacroParamList(
   } while (TryConsumeToken(tok::comma));
 
   if (ExpectAndConsume(tok::r_paren)) {
-    return nullptr;
+    return;
   }
 }

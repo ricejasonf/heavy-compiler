@@ -47,7 +47,7 @@ using namespace clang;
 
 HeavyMacroDecl *Sema::ActOnHeavyMacroDecl(Scope *S, SourceLocation BeginLoc,
                                           DeclarationName Name) {
-  LookupResult Previous(*this, Name, Name.getBeginLoc(), LookupOrdinaryName,
+  LookupResult Previous(*this, Name, BeginLoc, LookupOrdinaryName,
                         NotForRedeclaration);
   LookupName(Previous, S);
   FilterLookupForScope(Previous, CurContext, S, /*ConsiderLinkage*/false,
@@ -59,33 +59,30 @@ HeavyMacroDecl *Sema::ActOnHeavyMacroDecl(Scope *S, SourceLocation BeginLoc,
       Diag(BeginLoc, diag::err_redefinition_of_heavy_macro)
         << Name;
       notePreviousDefinition(PreviousDecl,
-                             D.getBeginLoc());
+                             BeginLoc);
     } else {
       Diag(BeginLoc, diag::err_redefinition_different_kind)
         << Name;
       notePreviousDefinition(PreviousDecl,
-                             D.getBeginLoc());
+                             BeginLoc);
     }
     return nullptr;
   }
 
-  bool IsStatic = D.getDeclSpec().getStorageClassSpec() ==
-    DeclSpec::SCS_static;
-
   HeavyMacroDecl *
   New = HeavyMacroDecl::Create(Context, CurContext,
-                                        Name
-                                        BeginLoc, TemplateDepth,
-                                        IsStatic, IsPackOp);
+                                        Name,
+                                        BeginLoc);
   assert(New && "HeavyMacroDecl::Create failed??");
   PushOnScopeChains(New, S);
 
   return New;
 }
 
-Decl *Sema::ActOnFinishHeavyMacroDecl(HeavyMacroDecl* New,
-                                      const SmallVectorImpl<HeavyAlias*>& ParamInfo,
-                                      ExprResult BodyResult) {
+HeavyMacroDecl *Sema::ActOnFinishHeavyMacroDecl(
+                          HeavyMacroDecl* New,
+                          const SmallVectorImpl<HeavyAliasDecl*>& ParamInfo,
+                          ExprResult BodyResult) {
   // Body
 
   if (!New || BodyResult.isInvalid())
@@ -93,14 +90,14 @@ Decl *Sema::ActOnFinishHeavyMacroDecl(HeavyMacroDecl* New,
 
   Expr *Body = BodyResult.getAs<Expr>();
 
-  if (Body->containsUnexpandedParameterPack() {
+  if (Body->containsUnexpandedParameterPack()) {
     DiagnoseUnexpandedParameterPack(Body, UPPC_Expression);
   }
   New->setBody(Body);
 
   // Params
 
-  New->setParams(ParamInfo);
+  New->setParams(Context, ParamInfo);
 
   return New;
 }
@@ -112,6 +109,7 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(
   // TODO
   //  - validate params
   //  - call BuildHeavyMacroCallExpr
+  return ExprResult{};
 }
 
 #if 0 // FIXME idk if this is needed
@@ -124,6 +122,7 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(
 
 ExprResult BuildHeavyMacroCallExpr(
                       SourceLocation BeginLoc, Expr *Body,
-                      ArrayRef<HeavyMacroParam*> Params) {
+                      ArrayRef<HeavyAliasDecl*> Params) {
   // TODO
+  return ExprResult{};
 }

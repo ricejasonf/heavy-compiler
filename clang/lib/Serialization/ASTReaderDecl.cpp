@@ -19,6 +19,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclHeavy.h"
 #include "clang/AST/DeclFriend.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclOpenMP.h"
@@ -3970,6 +3971,14 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
     break;
   case DECL_OBJC_TYPE_PARAM:
     D = ObjCTypeParamDecl::CreateDeserialized(Context, ID);
+    break;
+  case DECL_HEAVY_MACRO:
+    llvm_unreachable("TODO");
+    //D = ??
+    break;
+  case DECL_HEAVY_ALIAS:
+    llvm_unreachable("TODO");
+    //D = ??
     break;
   }
 

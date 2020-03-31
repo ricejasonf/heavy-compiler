@@ -14150,6 +14150,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::DependentCoawaitExprClass:
   case Expr::CoyieldExprClass:
   case Expr::HeavyMacroIdExprClass:
+  case Expr::HeavyAliasIdExprClass:
   case Expr::HeavyMacroCallExprClass:
     return ICEDiag(IK_NotICE, E->getBeginLoc());
 

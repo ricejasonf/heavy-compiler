@@ -3459,6 +3459,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case ConceptSpecializationExprClass:
   case RequiresExprClass:
   case HeavyMacroIdExprClass:
+  case HeavyAliasIdExprClass:
     // These never have a side-effect.
     return false;
 
@@ -3535,7 +3536,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case ShuffleVectorExprClass:
   case ConvertVectorExprClass:
   case AsTypeExprClass:
-  case HeavyMacroCallExpr:
+  case HeavyMacroCallExprClass:
     // These have a side-effect if any subexpression does.
     break;
 

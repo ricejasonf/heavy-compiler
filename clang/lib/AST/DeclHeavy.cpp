@@ -13,6 +13,7 @@
 #include "clang/AST/DeclHeavy.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclBase.h"
+#include "clang/AST/DeclHeavy.h"
 #if 0
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/ASTMutationListener.h"
@@ -52,13 +53,19 @@
 
 using namespace clang;
 
+HeavyAliasDecl *HeavyAliasDecl::Create(
+                            ASTContext &C, DeclContext *DC,
+                            DeclarationName DN,
+                            SourceLocation StartL) {
+  HeavyAliasDecl *New =
+      new (C, DC) HeavyAliasDecl(DC, DN, StartL);
+  return New;
+}
+
 HeavyMacroDecl *HeavyMacroDecl::Create(
                             ASTContext &C, DeclContext *DC,
                             DeclarationName DN,
-                            SourceLocation StartL,
-                            unsigned TemplateDepth,
-                            bool IsStatic,
-                            bool IsPackOp) {
+                            SourceLocation StartL) {
   HeavyMacroDecl *New =
       new (C, DC) HeavyMacroDecl(DC, DN, StartL);
   return New;
@@ -75,13 +82,13 @@ HeavyMacroDecl *HeavyMacroDecl::Create(
 }
 
 void HeavyMacroDecl::setParams(ASTContext &C,
-                               ArrayRef<HeavyAlias *> NewParamInfo) {
+                               ArrayRef<HeavyAliasDecl *> NewParamInfo) {
   assert(!ParamInfo && "Already has param info!");
   NumParams = NewParamInfo.size();
 
   // Zero params -> null pointer.
   if (!NewParamInfo.empty()) {
-    ParamInfo = new (C) ParmVarDecl*[NewParamInfo.size()];
+    ParamInfo = new (C) HeavyAliasDecl*[NewParamInfo.size()];
     std::copy(NewParamInfo.begin(), NewParamInfo.end(), ParamInfo);
   }
 }
