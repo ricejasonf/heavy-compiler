@@ -99,26 +99,26 @@ public:
 //
 class HeavyMacroCallExpr : public Expr {
   SourceLocation BeginLoc;
-  HeavyMacroDecl* TheDecl;
+  HeavyMacroDecl* OrigDecl;
   Expr** ArgInfo;
   Expr* Body;
   unsigned NumArgs = 0;
 
-  HeavyMacroCallExpr(SourceLocation BL, QualType QT, ExprValueKind VK)
+  HeavyMacroCallExpr(SourceLocation BL, HeavyMacroDecl D,
+                     QualType QT, ExprValueKind VK)
     : Expr(HeavyMacroCallExprClass, QT, VK, OK_Ordinary,
            false, false, false, false),
-      BeginLoc(BL) {}
+      BeginLoc(BL),
+      OrigDecl(D) {}
 public:
   static HeavyMacroCallExpr *Create(
                   ASTContext &C, SourceLocation BL,
                   HeavyMacroDecl* D,
                   Expr *Body,
-                  QualType QT, ExprValueKind VK,
-                  ArrayRef<Expr *> Args);
+                  ArrayRef<Expr*> Args);
 
-  static bool hasDependentArgs(ArrayRef<Expr *> Args);
+  static bool hasDependentArgs(ArrayRef<Expr*> Args);
 
-  void setArgs(ASTContext &C, ArrayRef<Expr*> NewArgInfo);
   unsigned getNumArgs() const { return NumArgs; }
 
   ArrayRef<Expr *> getArgs() const {

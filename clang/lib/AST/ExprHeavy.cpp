@@ -41,9 +41,19 @@ HeavyMacroCallExpr::Create(
                     ASTContext &C, SourceLocation BL,
                     HeavyMacroDecl* D,
                     Expr* Body,
-                    QualType QT, ExprValueKind VK,
                     ArrayRef<Expr*> Args) {
-  HeavyMacroCallExpr* New = new (C) HeavyMacroCallExpr(BL, QT, VK);
+  QualType QT;
+  ValueKind VK;
+
+  if (Body) {
+    QT = Body->getType();
+    VK = Body->getValueKind();
+  } else {
+    QT = C.DependentTy;
+    VK = VK_RValue;
+  }
+
+  HeavyMacroCallExpr* New = new (C) HeavyMacroCallExpr(BL, D, QT, VK);
   New->NumArgs = Args.size();
 
   if (!Args.empty()) {
