@@ -81,11 +81,6 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
   }
 
 
-  // TODO I don't think we need to track the new HeavyAliasDecls.
-  //      They are just used for instantiation
-  // llvm::SmallVector<HeavyAliasDecl*, 16> NewHeavyAliasDecls;
-  // NewHeavyAliasDecls.reserve(ArgExprs.size());
-
   // We already know there is at most one param pack
   int PackSize = ArgExprs.size() - OldParams.size() + 1;
   int PackCount = (std::find_if(OldParams.begin(),
@@ -117,7 +112,6 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
         HeavyAliasDecl *New = BuildHeavyMacroParam(P, *ArgExprsItr);
         if (!New) return ExprError();
         Scope.InstantiatedLocalPackArg(P, New);
-        // NewHeavyAliasDecls.push_back(New);
         ++ArgExprsItr;
       }
     } else {
@@ -125,7 +119,6 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
       HeavyAliasDecl *New = BuildHeavyMacroParam(P, *ArgExprsItr);
       if (!New) return ExprError();
       Scope.InstantiatedLocal(P, New);
-      // NewHeavyAliasDecls.push_back(New);
       ++ArgExprsItr;
     }
   }
@@ -139,6 +132,16 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
   // Again... note that we keep ArgExprs
   // for use with refactoring/rewrite tools
   ExprResult BodyResult = SubstExpr(OutputExpr, TemplateArgs);
+
+  // wrap the body in ParenExpr for rewriting
+  if (BodyResult.isUsable()) {
+    BodyResult = ActOnParenExpr(Loc, Loc, BodyResult.getAs<Expr>());
+  }
+
+  if (BodyResult.isInvalid()) {
+    return ExprError();
+  }
+
   return BuildHeavyMacroCallExpr(Loc, BodyResult.getAs<Expr>(),
                                  ArgExprs);
 }

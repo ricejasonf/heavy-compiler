@@ -74,8 +74,7 @@ class HeavyMacroIdExpr : public Expr {
 public:
   static HeavyMacroIdExpr *Create(ASTContext &C, SourceLocation BL,
                                             HeavyMacroDecl *D) {
-    return new (C) HeavyMacroIdExpr(BL, C.HeavyMacroIdTy,
-                                              D);
+    return new (C) HeavyMacroIdExpr(BL, C.HeavyMacroIdTy, D);
   }
 
   HeavyMacroDecl *getDefinitionDecl() { return DefinitionDecl; }

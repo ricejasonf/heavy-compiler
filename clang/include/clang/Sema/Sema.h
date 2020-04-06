@@ -6249,8 +6249,10 @@ public:
                         ArrayRef<Expr*> ArgExprs,
                         SourceLocation Loc);
   ExprResult BuildHeavyMacroCallExpr(
-                        SourceLocation BeginLoc, Expr *Body,
-                        ArrayRef<HeavyAliasDecl*> Params);
+                        SourceLocation BeginLoc,
+                        HeavyMacroDecl *D,
+                        Expr *Body,
+                        ArrayRef<Expr*> Args);
 
 private:
   /// Caches pairs of template-like decls whose associated constraints were
@@ -8251,6 +8253,27 @@ public:
   };
 
   friend class ArgumentPackSubstitutionRAII;
+
+  // Always require rebuilding in AST transformations
+  // when substituting a HeavyAliasId with an Expr
+  // This affects the context of contained variable
+  // declarations which must also be rebuilt.
+  bool ExpandingExprAlias;
+
+  class ExpandingExprAliasRAII {
+    Sema &Self;
+    bool OldValue;
+
+  public:
+    ExpandingExprAliasRAII(Sema &Self, int NewValue = true)
+      : Self(Self), OldValue(Self.ExpandingExprAlias) {
+      Self.ExpandingExprAlias = NewValue;
+    }
+
+    ~ExpandingExprAliasRAII() {
+      Self.ExpandingExprAlias = OldValue;
+    }
+  };
 
   /// For each declaration that involved template argument deduction, the
   /// set of diagnostics that were suppressed during that template argument

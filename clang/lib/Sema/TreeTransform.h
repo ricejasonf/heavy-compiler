@@ -150,7 +150,10 @@ public:
   /// We must always rebuild all AST nodes when performing variadic template
   /// pack expansion, in order to avoid violating the AST invariant that each
   /// statement node appears at most once in its containing declaration.
-  bool AlwaysRebuild() { return SemaRef.ArgumentPackSubstitutionIndex != -1; }
+  bool AlwaysRebuild() {
+    return SemaRef.ExpandingExprAlias ||
+           SemaRef.ArgumentPackSubstitutionIndex != -1;
+  }
 
   /// Whether the transformation is forming an expression or statement that
   /// replaces the original. In this case, we'll reuse mangling numbers from
@@ -3428,6 +3431,16 @@ public:
     SourceRange Range{BuiltinLoc, RParenLoc};
     return getSema().BuildAtomicExpr(Range, Range, RParenLoc, SubExprs, Op,
                                      Sema::AtomicArgumentOrder::AST);
+  }
+
+  // Build a new call to a heavy macro
+  //
+  // By default, just creates a new one with the given inputs
+  ExprResult RebuildHeavyMacroCallExpr(SourceLocation BeginLoc,
+                                       HeavyMacroDecl* D,
+                                       Expr *Body,
+                                       ArrayRef<Expr*> Args) {
+    return SemaRef.BuildHeavyMacroCallExpr(BeginLoc, D, Body, Args);
   }
 
 private:
@@ -13705,6 +13718,66 @@ TreeTransform<Derived>::TransformCapturedStmt(CapturedStmt *S) {
   }
 
   return getSema().ActOnCapturedRegionEnd(Body.get());
+}
+
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformHeavyMacroIdExpr(
+    HeavyMacroIdExpr *E) {
+  if (getDerived().AlwaysRebuild()) {
+    return HeavyMacroIdExpr::Create(SemaRef.Context,
+                                    E->getBeginLoc(),
+                                    E->getDefinitionDecl());
+  }
+
+  return E;
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformHeavyAliasIdExpr(HeavyAliasIdExpr *E) {
+  if (E->getDefinitionDecl()->getBody()) {
+    Sema::ExpandingExprAliasRAII ExpandingExprAlias(SemaRef);
+    return SemaRef.SubstExpr(E->getBody(), {});
+  }
+
+  if (getDerived().AlwaysRebuild()) {
+    return E;
+  }
+
+  return HeavyAliasIdExpr::Create(SemaRef.Context,
+                                  E->getBeginLoc(),
+                                  E->getDefinitionDecl());
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformHeavyMacroCallExpr(HeavyMacroCallExpr* E) {
+  SourceLocation Loc = E->getBeginLoc();
+  HeavyMacroDecl *D = E->getDecl();
+
+  // Transform the arguments (no matter what I guess)
+
+  bool ArgChanged = false;
+  SmallVector<Expr*, 8> Args;
+  if (getDerived().TransformExprs(E->getArgs(), E->getNumArgs(), true, Args,
+                                  &ArgChanged))
+    return ExprError();
+
+  // Start from scratch if the Body is not instantiated
+  if (ArgChanged && !E->getBody()) {
+    return getSema().ActOnHeavyMacroCallExpr(D, Args, Loc)
+  }
+    
+  // Transform the Body 
+
+  Expr* NewBody = getDerived().TransformExpr(E->getBody());
+
+  if (!getDerived().AlwaysRebuild() && !ArgChanged && E->getBody() != NewBody)
+    return E;
+
+  return getDerived().RebuildHeavyMacroCallExpr(Loc, D, NewBody, Args);
 }
 
 } // end namespace clang

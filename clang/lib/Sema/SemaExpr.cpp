@@ -2375,6 +2375,18 @@ Sema::ActOnIdExpression(Scope *S, CXXScopeSpec &SS,
   if (R.isAmbiguous())
     return ExprError();
 
+  if (R.getAsSingle<HeavyAliasDecl>()) {
+    return HeavyAliasIdExpr::Create(
+                          Context, NameLoc,
+                          R.getAsSingle<HeavyAliasDecl>());
+  }
+  if (R.getAsSingle<HeavyMacroDecl>()) {
+    return HeavyMacroIdExpr::Create(
+                          Context, NameLoc,
+                          R.getAsSingle<HeavyMacroDecl>());
+  }
+
+
   // This could be an implicitly declared function reference (legal in C90,
   // extension in C99, forbidden in C++).
   if (R.empty() && HasTrailingLParen && II && !getLangOpts().CPlusPlus) {
