@@ -32,13 +32,20 @@ namespace clang {
 
 class HeavyAliasDecl : public NamedDecl {
   Expr* Body;
+  bool IsParameterPack;
 
-  HeavyAliasDecl(DeclContext* DC, DeclarationName DN, SourceLocation SL)
-    : NamedDecl(HeavyAlias, DC, SL, DN)
+  HeavyAliasDecl(DeclContext* DC, DeclarationName DN, SourceLocation SL, bool IsPack)
+    : NamedDecl(HeavyAlias, DC, SL, DN),
+    , IsParameterPack(IsPack)
   {}
 public:
   static HeavyAliasDecl *Create(ASTContext &C, DeclContext *DC,
-                                DeclarationName DN, SourceLocation SL);
+                                DeclarationName DN, SourceLocation SL,
+                                bool IsPack = 0);
+
+  bool isParameterPack() {
+    return IsParameterPack;
+  }
 
   void setBody(Expr *S) {
     Body = S;

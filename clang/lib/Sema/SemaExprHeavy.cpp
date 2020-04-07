@@ -85,8 +85,8 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
   int PackSize = ArgExprs.size() - OldParams.size() + 1;
   int PackCount = (std::find_if(OldParams.begin(),
                                 OldParams.end(),
-                                [](HeavyAliasDecl* PD) {
-                                  return PD->isParameterPack(); })
+                                [](HeavyAliasDecl* AD) {
+                                  return AD->isParameterPack(); })
                   != OldParams.end()) ? 1 : 0;
 
   // If PackSize is negative then there must not be a param pack

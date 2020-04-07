@@ -2765,10 +2765,6 @@ public:
   /// in a 'block', this returns the containing context.
   NamedDecl *getCurFunctionOrMethodDecl();
 
-  /// getCurHeavyMacroDecl - If inside of a parametric expression body,
-  /// this returns a pointer to the decl being parsed.
-  HeavyMacroDecl *getCurHeavyMacroDecl();
-
   /// Add this decl to the scope shadowed decl chains.
   void PushOnScopeChains(NamedDecl *D, Scope *S, bool AddToContext = true);
 
@@ -3226,11 +3222,6 @@ public:
                                 TemplateArgumentListInfo *ExplicitTemplateArgs,
                                             OverloadCandidateSet& CandidateSet,
                                             bool PartialOverloading = false);
-  // FIXME erm I don't think this is needed since we aren't supporting operator overloading
-  void AddHeavyMacroCandidate(HeavyMacroDecl *PD,
-                              DeclAccessPair FoundDecl,
-                              OverloadCandidateSet& CandidateSet);
-
 
   // Emit as a 'note' the specific overload candidate
   void NoteOverloadCandidate(
@@ -6236,6 +6227,7 @@ public:
                         SourceLocation StartLoc,
                         DeclarationName Name);
   HeavyMacroDecl *ActOnFinishHeavyMacroDecl(
+                        Scope *BodyScope,
                         HeavyMacroDecl* D,
                         const SmallVectorImpl<HeavyAliasDecl*>& ParamInfo,
                         ExprResult BodyResult);

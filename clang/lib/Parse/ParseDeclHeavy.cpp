@@ -25,10 +25,6 @@
 
 using namespace clang;
 
-// TODO 
-//      - Update calls to Actions when Sema is ready
-//
-
 Decl*
 Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
   SourceLocation BeginLoc;
@@ -95,10 +91,24 @@ void Parser::ParseHeavyMacroParamList(
     return;
   }
 
+  int PackCount = 0;
+
   // Maintain an efficient lookup of params we have seen so far.
   llvm::SmallSet<const IdentifierInfo*, 16> ParamsSoFar;
 
   do {
+    bool IsPack = false;
+
+    if (Tok.is(tok::ellipsis)) {
+      IsPack = true;
+      ++PackCount;
+      ConsumeToken();
+    }
+
+    if (PackCount > 1) {
+      Diag(Tok, diag::err_heavy_macro_multiple_parameter_packs) << ParmII;
+    }
+
     // If this isn't an identifier, report the error and skip until ')'.
     if (Tok.isNot(tok::identifier)) {
       Diag(Tok, diag::err_expected) << tok::identifier;
@@ -118,7 +128,8 @@ void Parser::ParseHeavyMacroParamList(
       ParamInfo.push_back(HeavyAliasDecl::Create(Actions.getASTContext(), 
                                                  Actions.CurContext,
                                                  DeclarationName(ParmII),
-                                                 Tok.getLocation()));
+                                                 Tok.getLocation(),
+                                                 IsPack));
     }
 
     // Eat the identifier.

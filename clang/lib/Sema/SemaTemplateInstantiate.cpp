@@ -564,6 +564,11 @@ void Sema::PrintInstantiationStack() {
         Diags.Report(Active->PointOfInstantiation,
                      diag::note_template_nsdmi_here)
             << FD << Active->InstantiationRange;
+      } else if (HeavyMacroDecl *PD
+          = dyn_cast<HeavyMacroDecl>(D)) {
+        Diags.Report(Active->PointOfInstantiation,
+                     diag::note_heavy_macro_instantiation_here)
+            << PD << Active->InstantiationRange;
       } else {
         Diags.Report(Active->PointOfInstantiation,
                      diag::note_template_type_alias_instantiation_here)

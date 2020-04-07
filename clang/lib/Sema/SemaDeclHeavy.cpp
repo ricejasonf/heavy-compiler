@@ -80,7 +80,7 @@ HeavyMacroDecl *Sema::ActOnHeavyMacroDecl(Scope *S, SourceLocation BeginLoc,
 }
 
 HeavyMacroDecl *Sema::ActOnFinishHeavyMacroDecl(
-                          HeavyMacroDecl* New,
+                          Scope *BodyScope, HeavyMacroDecl* New,
                           const SmallVectorImpl<HeavyAliasDecl*>& ParamInfo,
                           ExprResult BodyResult) {
   // Body
@@ -98,6 +98,10 @@ HeavyMacroDecl *Sema::ActOnFinishHeavyMacroDecl(
   // Params
 
   New->setParams(Context, ParamInfo);
+  for (auto& P : ParamInfo) {
+    PushOnScopeChains(P, BodyScope);
+  }
+  
 
   return New;
 }
