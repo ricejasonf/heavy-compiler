@@ -5481,6 +5481,7 @@ static bool isPlaceholderToRemoveAsArg(QualType type) {
   // We cannot lower out overload sets; they might validly be resolved
   // by the call machinery.
   case BuiltinType::Overload:
+  case BuiltinType::HeavyAliasId:
     return false;
 
   // Unbridged casts in ARC can be handled in some call positions and
@@ -5501,6 +5502,7 @@ static bool isPlaceholderToRemoveAsArg(QualType type) {
   case BuiltinType::BoundMember:
   case BuiltinType::BuiltinFn:
   case BuiltinType::OMPArraySection:
+  case BuiltinType::HeavyMacroId:
     return true;
 
   }
@@ -18088,6 +18090,14 @@ ExprResult Sema::CheckPlaceholderExpr(Expr *E) {
   case BuiltinType::OMPArraySection:
     Diag(E->getBeginLoc(), diag::err_omp_array_section_use);
     return ExprError();
+
+  // HeavyMacroId and HeavyAliasId
+  case BuiltinType::HeavyMacroId:
+  case BuiltinType::HeavyAliasId: {
+    ExprResult result = E;
+    Diag(E->getBeginLoc(), diag::err_heavy_macro_id);
+    return result;
+  }
 
   // Everything else should be impossible.
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \

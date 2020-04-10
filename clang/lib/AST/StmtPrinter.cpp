@@ -2512,6 +2512,11 @@ void StmtPrinter::VisitHeavyMacroIdExpr(
   OS << Node->getDefinitionDecl()->getName();
 }
 
+void StmtPrinter::VisitHeavyAliasIdExpr(
+                                 HeavyAliasIdExpr *Node) {
+  OS << Node->getDefinitionDecl()->getName();
+}
+
 void StmtPrinter::VisitHeavyMacroCallExpr(
                                HeavyMacroCallExpr *Node) {
   // TODO print the call expr with the original arguments

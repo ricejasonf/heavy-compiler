@@ -3624,6 +3624,14 @@ Decl *TemplateDeclInstantiator::VisitDecl(Decl *D) {
   llvm_unreachable("Unexpected decl");
 }
 
+Decl *TemplateDeclInstantiator::VisitHeavyMacroDecl(HeavyMacroDecl *D) {
+  llvm_unreachable("Heavy macros cannot reside inside a template");
+}
+
+Decl *TemplateDeclInstantiator::VisitHeavyAliasDecl(HeavyAliasDecl *D) {
+  llvm_unreachable("Heavy aliases cannot reside inside a template");
+}
+
 Decl *Sema::SubstDecl(Decl *D, DeclContext *Owner,
                       const MultiLevelTemplateArgumentList &TemplateArgs) {
   TemplateDeclInstantiator Instantiator(*this, Owner, TemplateArgs);

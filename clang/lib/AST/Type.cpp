@@ -2901,6 +2901,8 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
     return "<OpenMP array section type>";
   case HeavyMacroId:
     return "<heavy macro id>";
+  case HeavyAliasId:
+    return "<heavy alias id>";
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
   case Id: \
     return #ExtType;
@@ -3924,6 +3926,7 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
     case BuiltinType::NullPtr:
     case BuiltinType::OMPArraySection:
     case BuiltinType::HeavyMacroId:
+    case BuiltinType::HeavyAliasId:
       return false;
     }
     llvm_unreachable("unknown builtin type");

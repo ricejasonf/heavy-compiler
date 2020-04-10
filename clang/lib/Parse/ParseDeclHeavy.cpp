@@ -72,7 +72,7 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
 
   ExprResult BodyResult = ParseExpression();
 
-  Decl *TheDecl = Actions.ActOnFinishHeavyMacroDecl(New, ParamInfo,
+  Decl *TheDecl = Actions.ActOnFinishHeavyMacroDecl(getCurScope(), New, ParamInfo,
                                                     BodyResult);
   Actions.PopDeclContext();
   BodyScope.Exit();
@@ -105,10 +105,6 @@ void Parser::ParseHeavyMacroParamList(
       ConsumeToken();
     }
 
-    if (PackCount > 1) {
-      Diag(Tok, diag::err_heavy_macro_multiple_parameter_packs) << ParmII;
-    }
-
     // If this isn't an identifier, report the error and skip until ')'.
     if (Tok.isNot(tok::identifier)) {
       Diag(Tok, diag::err_expected) << tok::identifier;
@@ -120,6 +116,10 @@ void Parser::ParseHeavyMacroParamList(
 
     IdentifierInfo *ParmII = Tok.getIdentifierInfo();
 
+    if (PackCount > 1) {
+      Diag(Tok, diag::err_heavy_macro_multiple_parameter_packs) << ParmII;
+    }
+
     // Verify that the argument identifier has not already been mentioned.
     if (!ParamsSoFar.insert(ParmII).second) {
       Diag(Tok, diag::err_param_redefinition) << ParmII;
@@ -127,7 +127,7 @@ void Parser::ParseHeavyMacroParamList(
       // TODO call ActOnHeavyAliasDecl so it adds it to scope (I think)
       ParamInfo.push_back(HeavyAliasDecl::Create(Actions.getASTContext(), 
                                                  Actions.CurContext,
-                                                 DeclarationName(ParmII),
+                                                 ParmII,
                                                  Tok.getLocation(),
                                                  IsPack));
     }

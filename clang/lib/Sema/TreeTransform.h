@@ -35,6 +35,7 @@
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/Template.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <algorithm>
@@ -13755,26 +13756,32 @@ template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformHeavyMacroCallExpr(HeavyMacroCallExpr* E) {
   SourceLocation Loc = E->getBeginLoc();
-  HeavyMacroDecl *D = E->getDecl();
+  HeavyMacroDecl *D = E->getDefinitionDecl();
+  assert(D && "HeavyMacroCallExpr must have definition decl");
 
   // Transform the arguments (no matter what I guess)
 
   bool ArgChanged = false;
   SmallVector<Expr*, 8> Args;
-  if (getDerived().TransformExprs(E->getArgs(), E->getNumArgs(), true, Args,
-                                  &ArgChanged))
+  if (getDerived().TransformExprs(E->getArgs().data(), E->getNumArgs(), true,
+                                  Args, &ArgChanged))
     return ExprError();
 
   // Start from scratch if the Body is not instantiated
-  if (ArgChanged && !E->getBody()) {
-    return getSema().ActOnHeavyMacroCallExpr(D, Args, Loc)
+  if (ArgChanged && !D->getBody()) {
+    return getSema().ActOnHeavyMacroCallExpr(D, Args, Loc);
   }
     
   // Transform the Body 
 
-  Expr* NewBody = getDerived().TransformExpr(E->getBody());
+  ExprResult NewBodyResult = getDerived().TransformExpr(D->getBody());
+  if (NewBodyResult.isInvalid()) {
+    return ExprError();
+  }
 
-  if (!getDerived().AlwaysRebuild() && !ArgChanged && E->getBody() != NewBody)
+  Expr* NewBody = NewBodyResult.get();
+
+  if (!getDerived().AlwaysRebuild() && !ArgChanged && D->getBody() != NewBody)
     return E;
 
   return getDerived().RebuildHeavyMacroCallExpr(Loc, D, NewBody, Args);

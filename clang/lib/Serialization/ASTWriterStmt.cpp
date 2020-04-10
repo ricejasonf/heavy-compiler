@@ -2479,6 +2479,23 @@ void ASTStmtWriter::VisitOMPTargetTeamsDistributeSimdDirective(
 }
 
 //===----------------------------------------------------------------------===//
+// Heavy Exprs
+//===----------------------------------------------------------------------===//
+//
+
+void ASTStmtWriter::VisitHeavyMacroIdExpr(HeavyMacroIdExpr* E) {
+  llvm_unreachable("TODO VisitHeavyMacroIdExpr");
+}
+
+void ASTStmtWriter::VisitHeavyAliasIdExpr(HeavyAliasIdExpr* E) {
+  llvm_unreachable("TODO VisitHeavyAliasIdExpr");
+}
+
+void ASTStmtWriter::VisitHeavyMacroCallExpr(HeavyMacroCallExpr* E) {
+  llvm_unreachable("TODO VisitHeavyMacroCallExpr");
+}
+
+//===----------------------------------------------------------------------===//
 // ASTWriter Implementation
 //===----------------------------------------------------------------------===//
 

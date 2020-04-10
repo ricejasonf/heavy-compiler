@@ -55,10 +55,11 @@ using namespace clang;
 
 HeavyAliasDecl *HeavyAliasDecl::Create(
                             ASTContext &C, DeclContext *DC,
-                            DeclarationName DN,
-                            SourceLocation StartL) {
+                            IdentifierInfo *I,
+                            SourceLocation StartL,
+                            bool IsPack) {
   HeavyAliasDecl *New =
-      new (C, DC) HeavyAliasDecl(DC, DN, StartL);
+      new (C, DC) HeavyAliasDecl(C, DC, I, StartL, IsPack);
   return New;
 }
 

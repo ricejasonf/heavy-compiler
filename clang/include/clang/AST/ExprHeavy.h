@@ -98,17 +98,17 @@ public:
 //
 class HeavyMacroCallExpr : public Expr {
   SourceLocation BeginLoc;
-  HeavyMacroDecl* OrigDecl;
+  HeavyMacroDecl* DefinitionDecl;
   Expr** ArgInfo;
   Expr* Body;
   unsigned NumArgs = 0;
 
-  HeavyMacroCallExpr(SourceLocation BL, HeavyMacroDecl D,
+  HeavyMacroCallExpr(SourceLocation BL, HeavyMacroDecl *D,
                      QualType QT, ExprValueKind VK)
     : Expr(HeavyMacroCallExprClass, QT, VK, OK_Ordinary,
            false, false, false, false),
       BeginLoc(BL),
-      OrigDecl(D) {}
+      DefinitionDecl(D) {}
 public:
   static HeavyMacroCallExpr *Create(
                   ASTContext &C, SourceLocation BL,
@@ -117,6 +117,9 @@ public:
                   ArrayRef<Expr*> Args);
 
   static bool hasDependentArgs(ArrayRef<Expr*> Args);
+  HeavyMacroDecl *getDefinitionDecl() { return DefinitionDecl; }
+
+  Expr* getBody() const { return Body; }
 
   unsigned getNumArgs() const { return NumArgs; }
 
@@ -162,7 +165,9 @@ public:
 
   HeavyAliasDecl *getDefinitionDecl() { return DefinitionDecl; }
 
-  Expr *getSubstExpr() { return DefinitionDecl->getBody(); };
+  Expr *getBody() const {
+    return DefinitionDecl->getBody();
+  };
 
   // Iterators
   child_range children() {

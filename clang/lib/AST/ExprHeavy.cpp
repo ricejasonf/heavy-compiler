@@ -43,7 +43,7 @@ HeavyMacroCallExpr::Create(
                     Expr* Body,
                     ArrayRef<Expr*> Args) {
   QualType QT;
-  ValueKind VK;
+  ExprValueKind VK;
 
   if (Body) {
     QT = Body->getType();

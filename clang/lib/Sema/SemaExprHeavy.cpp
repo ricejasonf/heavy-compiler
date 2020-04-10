@@ -42,6 +42,19 @@
 using namespace clang;
 using namespace sema;
 
+namespace {
+  // used in ActOnHeavyMacro and
+  HeavyAliasDecl *BuildHeavyMacroParam(Sema &S, HeavyAliasDecl *Old,
+                                       Expr *ArgExpr) {
+    IdentifierInfo* Id = Old->getDeclName().getAsIdentifierInfo();
+    HeavyAliasDecl *New = HeavyAliasDecl::Create(S.Context,
+                                                 S.CurContext, Id,
+                                                 Old->getLocation());
+    New->setBody(ArgExpr);
+    return New;
+  }
+}
+
 ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroIdExpr *Id,
                                          ArrayRef<Expr*> CallArgExprs,
                                          SourceLocation LParenLoc) {
@@ -65,10 +78,9 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
 
   ArrayRef<HeavyAliasDecl*> OldParams = D->parameters();
 
-  Stmt *Output = D->getBody();
-  if (!Output) {
-    // This is an error but just assume that we have an empty body
-    Output = CompoundStmt::CreateEmpty(Context, /*NumStmts=*/0);
+  Expr *OutputExpr = D->getBody();
+  if (!OutputExpr) {
+    return ExprError();
   }
 
   LocalInstantiationScope Scope(*this, /*CombineWithOuterScope=*/true);
@@ -109,14 +121,14 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
       Scope.MakeInstantiatedLocalArgPack(P);
       for (int J = 0; J < PackSize; ++J) {
         assert(ArgExprsItr < ArgExprs.end() && "ArgExprsItr out of range");
-        HeavyAliasDecl *New = BuildHeavyMacroParam(P, *ArgExprsItr);
+        HeavyAliasDecl *New = BuildHeavyMacroParam(*this, P, *ArgExprsItr);
         if (!New) return ExprError();
         Scope.InstantiatedLocalPackArg(P, New);
         ++ArgExprsItr;
       }
     } else {
       assert(ArgExprsItr < ArgExprs.end() && "ArgExprsItr out of range");
-      HeavyAliasDecl *New = BuildHeavyMacroParam(P, *ArgExprsItr);
+      HeavyAliasDecl *New = BuildHeavyMacroParam(*this, P, *ArgExprsItr);
       if (!New) return ExprError();
       Scope.InstantiatedLocal(P, New);
       ++ArgExprsItr;
@@ -142,7 +154,7 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
     return ExprError();
   }
 
-  return BuildHeavyMacroCallExpr(Loc, BodyResult.getAs<Expr>(),
+  return BuildHeavyMacroCallExpr(Loc, D, BodyResult.getAs<Expr>(),
                                  ArgExprs);
 }
 
@@ -150,24 +162,8 @@ ExprResult Sema::BuildHeavyMacroCallExpr(SourceLocation BeginLoc,
                                          HeavyMacroDecl* OrigDecl,
                                          Expr *Body,
                                          ArrayRef<Expr*> Args) {
-  // Assume type dependence if there is value dependent arguments
-  ExprValueKind VK;
-  QualType T;
-
   // The Body is not instantiated until all args are non-dependent
   // (ie value-dependent)
 
   return HeavyMacroCallExpr::Create(Context, BeginLoc, OrigDecl, Body, Args);
-}
-
-// used in ActOnHeavyMacro and
-// TreeTransform<Derived>::TransformHeavyMacroCallExpr
-HeavyAliasDecl *Sema::BuildHeavyMacroParam(HeavyAliasDecl *Old,
-                                           Expr *ArgExpr) {
-  HeavyAliasDecl *New = HeavyAliasDecl::Create(Context,
-                                               CurContext,
-                                               Old->getDeclName();
-                                               Old->getLocation())
-  New->setBody(ArgExpr);
-  return New;
 }

@@ -105,28 +105,3 @@ HeavyMacroDecl *Sema::ActOnFinishHeavyMacroDecl(
 
   return New;
 }
-
-ExprResult Sema::ActOnHeavyMacroCallExpr(
-                      HeavyMacroIdExpr *Fn,
-                      ArrayRef<Expr*> ArgExprs,
-                      SourceLocation LParenLoc) {
-  // TODO
-  //  - validate params
-  //  - call BuildHeavyMacroCallExpr
-  return ExprResult{};
-}
-
-#if 0 // FIXME idk if this is needed
-ExprResult Sema::ActOnHeavyMacroCallExpr(
-                      HeavyMacroDecl *D,
-                      ArrayRef<Expr*> ArgExprs,
-                      SourceLocation Loc) {
-}
-#endif
-
-ExprResult BuildHeavyMacroCallExpr(
-                      SourceLocation BeginLoc, Expr *Body,
-                      ArrayRef<HeavyAliasDecl*> Params) {
-  // TODO
-  return ExprResult{};
-}

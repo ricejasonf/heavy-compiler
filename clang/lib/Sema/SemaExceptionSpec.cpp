@@ -1327,6 +1327,11 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
       return CT_Dependent;
     return canThrow(cast<GenericSelectionExpr>(S)->getResultExpr());
 
+  case Expr::HeavyMacroCallExprClass:
+    if (cast<HeavyMacroCallExpr>(S)->isValueDependent())
+      return CT_Dependent;
+    return canThrow(cast<HeavyMacroCallExpr>(S)->getBody());
+
     // Some expressions are always dependent.
   case Expr::CXXDependentScopeMemberExprClass:
   case Expr::CXXUnresolvedConstructExprClass:
@@ -1353,6 +1358,8 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Expr::UnresolvedLookupExprClass:
   case Expr::UnresolvedMemberExprClass:
   case Expr::TypoExprClass:
+  case Expr::HeavyMacroIdExprClass:
+  case Expr::HeavyAliasIdExprClass:
     // FIXME: Many of the above can throw.
     return CT_Cannot;
 

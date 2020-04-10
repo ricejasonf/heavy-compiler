@@ -2132,6 +2132,11 @@ void StmtProfiler::VisitHeavyMacroIdExpr(
   VisitExpr(S);
 }
 
+void StmtProfiler::VisitHeavyAliasIdExpr(
+                                const HeavyAliasIdExpr *S) {
+  VisitExpr(S);
+}
+
 void StmtProfiler::VisitHeavyMacroCallExpr(
                               const HeavyMacroCallExpr *S) {
   VisitExpr(S);
