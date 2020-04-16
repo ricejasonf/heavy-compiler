@@ -2291,6 +2291,10 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
   Opts.HexFloats = Std.hasHexFloats();
   Opts.ImplicitInt = Std.hasImplicitInt();
 
+  // Actually enable Heavy in LangOptions
+  if (LangStd == LangStandard::lang_heavy)
+    Opts.Heavy = 1;
+
   // Set OpenCL Version.
   Opts.OpenCL = Std.isOpenCL();
   if (LangStd == LangStandard::lang_opencl10)

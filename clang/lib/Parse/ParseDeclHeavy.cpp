@@ -31,8 +31,7 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
 
   // Keyword heavy_macro
 
-  SourceLocation UsingLoc;
-  if (!TryConsumeToken(tok::kw_heavy_macro, UsingLoc)) {
+  if (!TryConsumeToken(tok::kw_heavy_macro, BeginLoc)) {
     llvm_unreachable("Token was expected to be kw_heavy_macro");
   }
 
@@ -40,7 +39,8 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
 
   if (Tok.isNot(tok::identifier)) {
     Diag(Tok, diag::err_expected) << tok::identifier;
-    SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+    //SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+    SkipUntil(tok::semi);
     return nullptr;
   }
   DeclarationName Name(Tok.getIdentifierInfo());
@@ -51,20 +51,27 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
 
   // Params
 
-  BalancedDelimiterTracker T(*this, tok::l_paren);
-  T.consumeOpen();
-
   // Parse parameter-declaration-clause.
   SmallVector<HeavyAliasDecl*, 16> ParamInfo;
 
-  if (!New)
+  if (!New) {
+    SkipUntil(tok::semi);
     return nullptr;
+  }
+
+  ParseScope PrototypeScope(this, Scope::DeclScope);
 
   Actions.PushDeclContext(Actions.getCurScope(), New);
   ParseHeavyMacroParamList(ParamInfo);
-  T.consumeClose();
+  PrototypeScope.Exit();
 
   // Body
+
+  if (ExpectAndConsume(tok::equal)) {
+    Actions.PopDeclContext();
+    SkipUntil(tok::semi);
+    return nullptr;
+  }
 
   // Fake the func (scope that is)
   Actions.PushFunctionScope();
@@ -74,9 +81,9 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
 
   Decl *TheDecl = Actions.ActOnFinishHeavyMacroDecl(getCurScope(), New, ParamInfo,
                                                     BodyResult);
-  Actions.PopDeclContext();
   BodyScope.Exit();
   Actions.PopFunctionScopeInfo();
+  Actions.PopDeclContext();
 
   // Semicolon
 
@@ -91,6 +98,9 @@ void Parser::ParseHeavyMacroParamList(
     return;
   }
 
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+  T.consumeOpen();
+
   int PackCount = 0;
 
   // Maintain an efficient lookup of params we have seen so far.
@@ -98,6 +108,11 @@ void Parser::ParseHeavyMacroParamList(
 
   do {
     bool IsPack = false;
+
+    if (Tok.is(tok::r_paren)) {
+      T.consumeClose();
+      return;
+    }
 
     if (Tok.is(tok::ellipsis)) {
       IsPack = true;
@@ -111,6 +126,7 @@ void Parser::ParseHeavyMacroParamList(
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
       // Forget we parsed anything.
       ParamInfo.clear();
+      T.consumeClose();
       return;
     }
 
@@ -138,6 +154,8 @@ void Parser::ParseHeavyMacroParamList(
   } while (TryConsumeToken(tok::comma));
 
   if (ExpectAndConsume(tok::r_paren)) {
+    T.consumeClose();
     return;
   }
+  T.consumeClose();
 }

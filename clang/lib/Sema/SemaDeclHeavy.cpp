@@ -70,9 +70,7 @@ HeavyMacroDecl *Sema::ActOnHeavyMacroDecl(Scope *S, SourceLocation BeginLoc,
   }
 
   HeavyMacroDecl *
-  New = HeavyMacroDecl::Create(Context, CurContext,
-                                        Name,
-                                        BeginLoc);
+  New = HeavyMacroDecl::Create(Context, CurContext, Name, BeginLoc);
   assert(New && "HeavyMacroDecl::Create failed??");
   PushOnScopeChains(New, S);
 
@@ -99,7 +97,8 @@ HeavyMacroDecl *Sema::ActOnFinishHeavyMacroDecl(
 
   New->setParams(Context, ParamInfo);
   for (auto& P : ParamInfo) {
-    PushOnScopeChains(P, BodyScope);
+    assert(P && "HeavyMacro param is nullptr??");
+    //PushOnScopeChains(P, BodyScope);
   }
   
 
