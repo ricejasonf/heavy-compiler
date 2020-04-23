@@ -30,26 +30,17 @@
 
 namespace clang {
 
-//class HeavyAliasDecl : public NamedDecl {
 class HeavyAliasDecl : public VarDecl {
   Expr* Body;
-  bool IsParameterPack;
 
   HeavyAliasDecl(ASTContext& C, DeclContext* DC, IdentifierInfo *I,
-                 SourceLocation SL, bool IsPack)
-    : VarDecl(HeavyAlias, C, DC, SL, SL, I, C.DependentTy,
-              /*TypeSourceInfo=*/nullptr, SC_Static) ,
-    //: NamedDecl(HeavyAlias, DC, SL, DN),
-      IsParameterPack(IsPack)
+                 TypeSourceInfo *TI, QualType T, SourceLocation SL)
+    : VarDecl(HeavyAlias, C, DC, SL, SL, I, T, TI, SC_Auto)
   {}
 public:
   static HeavyAliasDecl *Create(ASTContext &C, DeclContext *DC,
                                 IdentifierInfo* I, SourceLocation SL,
-                                bool IsPack = 0);
-
-  bool isParameterPack() {
-    return IsParameterPack;
-  }
+                                bool IsPack = false);
 
   void setBody(Expr *S) {
     Body = S;

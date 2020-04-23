@@ -5617,6 +5617,7 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
     return D;
   if (isa<ParmVarDecl>(D) || isa<NonTypeTemplateParmDecl>(D) ||
       isa<TemplateTypeParmDecl>(D) || isa<TemplateTemplateParmDecl>(D) ||
+      isa<HeavyAliasDecl>(D) ||
       ((ParentDC->isFunctionOrMethod() ||
         isa<OMPDeclareReductionDecl>(ParentDC) ||
         isa<OMPDeclareMapperDecl>(ParentDC)) &&

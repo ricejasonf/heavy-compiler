@@ -3309,6 +3309,11 @@ ExprResult Sema::BuildDeclarationNameExpr(
     case Decl::CXXConstructor:
       valueKind = VK_RValue;
       break;
+
+    case Decl::HeavyAlias:
+      // HeavyAlias is always dependent
+      valueKind = VK_RValue;
+      break;
     }
 
     return BuildDeclRefExpr(VD, type, valueKind, NameInfo, &SS, FoundD,
@@ -5752,6 +5757,10 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
   ExprResult Result = MaybeConvertParenListExprToParenExpr(Scope, Fn);
   if (Result.isInvalid()) return ExprError();
   Fn = Result.get();
+
+  if (HeavyMacroIdExpr *HM = dyn_cast<HeavyMacroIdExpr>(Fn)) {
+    return ActOnHeavyMacroCallExpr(HM, ArgExprs, LParenLoc);
+  }
 
   if (checkArgsForPlaceholders(*this, ArgExprs))
     return ExprError();
@@ -18092,11 +18101,15 @@ ExprResult Sema::CheckPlaceholderExpr(Expr *E) {
     return ExprError();
 
   // HeavyMacroId and HeavyAliasId
-  case BuiltinType::HeavyMacroId:
-  case BuiltinType::HeavyAliasId: {
+  case BuiltinType::HeavyMacroId: {
     ExprResult result = E;
     Diag(E->getBeginLoc(), diag::err_heavy_macro_id);
     return result;
+  }
+
+  case BuiltinType::HeavyAliasId: {
+    // err.. I think we are okay here
+    return E;
   }
 
   // Everything else should be impossible.

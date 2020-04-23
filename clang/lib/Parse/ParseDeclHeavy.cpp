@@ -39,7 +39,6 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
 
   if (Tok.isNot(tok::identifier)) {
     Diag(Tok, diag::err_expected) << tok::identifier;
-    //SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
     SkipUntil(tok::semi);
     return nullptr;
   }
@@ -59,11 +58,13 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
     return nullptr;
   }
 
-  ParseScope PrototypeScope(this, Scope::DeclScope);
-
+  ParseScope MacroScope(this, Scope::DeclScope);
   Actions.PushDeclContext(Actions.getCurScope(), New);
-  ParseHeavyMacroParamList(ParamInfo);
-  PrototypeScope.Exit();
+  bool ParamsFail = ParseHeavyMacroParamList(ParamInfo);
+
+  if (ParamsFail) {
+    return nullptr;
+  }
 
   // Body
 
@@ -74,16 +75,13 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
   }
 
   // Fake the func (scope that is)
-  Actions.PushFunctionScope();
-  ParseScope BodyScope(this, Scope::FnScope | Scope::DeclScope);
 
   ExprResult BodyResult = ParseExpression();
 
   Decl *TheDecl = Actions.ActOnFinishHeavyMacroDecl(getCurScope(), New, ParamInfo,
                                                     BodyResult);
-  BodyScope.Exit();
-  Actions.PopFunctionScopeInfo();
   Actions.PopDeclContext();
+  MacroScope.Exit();
 
   // Semicolon
 
@@ -92,14 +90,12 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
   return TheDecl;
 }
 
-void Parser::ParseHeavyMacroParamList(
+bool Parser::ParseHeavyMacroParamList(
     SmallVectorImpl<HeavyAliasDecl*> &ParamInfo) {
-  if (ExpectAndConsume(tok::l_paren)) {
-    return;
-  }
-
   BalancedDelimiterTracker T(*this, tok::l_paren);
-  T.consumeOpen();
+  if (T.expectAndConsume()) {
+    return true;
+  }
 
   int PackCount = 0;
 
@@ -110,8 +106,7 @@ void Parser::ParseHeavyMacroParamList(
     bool IsPack = false;
 
     if (Tok.is(tok::r_paren)) {
-      T.consumeClose();
-      return;
+      return T.consumeClose();
     }
 
     if (Tok.is(tok::ellipsis)) {
@@ -127,7 +122,7 @@ void Parser::ParseHeavyMacroParamList(
       // Forget we parsed anything.
       ParamInfo.clear();
       T.consumeClose();
-      return;
+      return true;
     }
 
     IdentifierInfo *ParmII = Tok.getIdentifierInfo();
@@ -140,12 +135,10 @@ void Parser::ParseHeavyMacroParamList(
     if (!ParamsSoFar.insert(ParmII).second) {
       Diag(Tok, diag::err_param_redefinition) << ParmII;
     } else {
-      // TODO call ActOnHeavyAliasDecl so it adds it to scope (I think)
-      ParamInfo.push_back(HeavyAliasDecl::Create(Actions.getASTContext(), 
-                                                 Actions.CurContext,
-                                                 ParmII,
-                                                 Tok.getLocation(),
-                                                 IsPack));
+      ParamInfo.push_back(Actions.ActOnHeavyAliasDecl(Actions.getCurScope(),
+                                                      Tok.getLocation(),
+                                                      ParmII,
+                                                      IsPack));
     }
 
     // Eat the identifier.
@@ -153,9 +146,5 @@ void Parser::ParseHeavyMacroParamList(
     // The list continues if we see a comma.
   } while (TryConsumeToken(tok::comma));
 
-  if (ExpectAndConsume(tok::r_paren)) {
-    T.consumeClose();
-    return;
-  }
-  T.consumeClose();
+  return T.consumeClose();
 }

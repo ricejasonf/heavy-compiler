@@ -14,13 +14,13 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclHeavy.h"
+#include "clang/AST/DeclTemplate.h"
 #if 0
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/ASTMutationListener.h"
 #include "clang/AST/ASTUnresolvedSet.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/CXXInheritance.h"
-#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
@@ -58,8 +58,32 @@ HeavyAliasDecl *HeavyAliasDecl::Create(
                             IdentifierInfo *I,
                             SourceLocation StartL,
                             bool IsPack) {
-  HeavyAliasDecl *New =
-      new (C, DC) HeavyAliasDecl(C, DC, I, StartL, IsPack);
+
+  QualType T;
+  TypeSourceInfo *TI = nullptr;
+  if (IsPack) {
+    // Create fake pack expansion type
+    TemplateTypeParmDecl *DummyTemplateParam =
+        TemplateTypeParmDecl::Create(
+            C, C.getTranslationUnitDecl(),
+            /*KeyLoc*/ SourceLocation(), /*NameLoc*/ SourceLocation(),
+            /*TemplateDepth*/ 0, /*AutoParameterPosition*/ 0,
+            /*Identifier*/ nullptr, false, /*IsParameterPack*/ true);
+
+    T = C.getPackExpansionType(
+        QualType(DummyTemplateParam->getTypeForDecl(), 0),
+        None);
+    assert(isa<PackExpansionType>(T) && "Expecting a PackExpansionType");
+    TI = C.CreateTypeSourceInfo(T);
+  } else {
+    T = C.DependentTy;
+  }
+
+  HeavyAliasDecl *New = new (C, DC) HeavyAliasDecl(C, DC, I, TI, T, StartL);
+
+  assert(!IsPack || New->isParameterPack()
+      && "HeavyAliasDecl should contain parameter pack.");
+
   return New;
 }
 

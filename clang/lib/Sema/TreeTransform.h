@@ -13738,18 +13738,14 @@ TreeTransform<Derived>::TransformHeavyMacroIdExpr(
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformHeavyAliasIdExpr(HeavyAliasIdExpr *E) {
-  if (E->getDefinitionDecl()->getBody()) {
-    Sema::ExpandingExprAliasRAII ExpandingExprAlias(SemaRef);
-    return SemaRef.SubstExpr(E->getBody(), {});
-  }
+  HeavyAliasDecl* D = cast<HeavyAliasDecl>(
+      getDerived().TransformDecl(E->getBeginLoc(),
+                                 E->getDefinitionDecl()));
 
-  if (getDerived().AlwaysRebuild()) {
-    return E;
-  }
-
-  return HeavyAliasIdExpr::Create(SemaRef.Context,
-                                  E->getBeginLoc(),
-                                  E->getDefinitionDecl());
+  assert(D && "HeavyAliasId should have a substituted decl");
+  assert(D->getBody() && "HeavyAliasId is expected to alias something");
+  Sema::ExpandingExprAliasRAII ExpandingExprAlias(SemaRef);
+  return SemaRef.SubstExpr(D->getBody(), {});
 }
 
 template<typename Derived>
@@ -13769,6 +13765,7 @@ TreeTransform<Derived>::TransformHeavyMacroCallExpr(HeavyMacroCallExpr* E) {
 
   // Start from scratch if the Body is not instantiated
   if (ArgChanged && !D->getBody()) {
+    llvm_unreachable("Top Level Decls only means we shouldn't get here right?");
     return getSema().ActOnHeavyMacroCallExpr(D, Args, Loc);
   }
     

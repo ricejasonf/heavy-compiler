@@ -3169,7 +3169,7 @@ private:
 
   Decl *ParseHeavyMacroDeclaration(
       DeclaratorContext Context);
-  void ParseHeavyMacroParamList(
+  bool ParseHeavyMacroParamList(
       SmallVectorImpl<HeavyAliasDecl*> &ParamInfo);
 };
 

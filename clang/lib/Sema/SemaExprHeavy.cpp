@@ -43,7 +43,7 @@ using namespace clang;
 using namespace sema;
 
 namespace {
-  // used in ActOnHeavyMacro and
+  // used in ActOnHeavyMacroCallExpr
   HeavyAliasDecl *BuildHeavyMacroParam(Sema &S, HeavyAliasDecl *Old,
                                        Expr *ArgExpr) {
     IdentifierInfo* Id = Old->getDeclName().getAsIdentifierInfo();

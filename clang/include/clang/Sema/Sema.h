@@ -6232,6 +6232,13 @@ public:
                         const SmallVectorImpl<HeavyAliasDecl*>& ParamInfo,
                         ExprResult BodyResult);
 
+  HeavyAliasDecl *ActOnHeavyAliasDecl(
+                        Scope *S,
+                        SourceLocation StartLoc,
+                        IdentifierInfo *II,
+                        bool IsPack,
+                        Expr *Body = nullptr);
+
   ExprResult ActOnHeavyMacroCallExpr(
                         HeavyMacroIdExpr *Fn,
                         ArrayRef<Expr*> ArgExprs,

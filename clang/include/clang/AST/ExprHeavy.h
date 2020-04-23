@@ -153,7 +153,7 @@ class HeavyAliasIdExpr : public Expr {
   HeavyAliasIdExpr(SourceLocation BL, QualType QT,
                    HeavyAliasDecl *D)
     : Expr(HeavyAliasIdExprClass, QT, VK_RValue, OK_Ordinary,
-           false, false, false, false),
+           true, true, true, D->isParameterPack()),
       BeginLoc(BL),
       DefinitionDecl(D) {}
 

@@ -98,9 +98,22 @@ HeavyMacroDecl *Sema::ActOnFinishHeavyMacroDecl(
   New->setParams(Context, ParamInfo);
   for (auto& P : ParamInfo) {
     assert(P && "HeavyMacro param is nullptr??");
-    //PushOnScopeChains(P, BodyScope);
   }
-  
+
 
   return New;
+}
+
+HeavyAliasDecl *Sema::ActOnHeavyAliasDecl(Scope *S,
+                                          SourceLocation StartLoc,
+                                          IdentifierInfo *II,
+                                          bool IsPack,
+                                          Expr *Body) {
+  HeavyAliasDecl *A = HeavyAliasDecl::Create(Context,
+                                             CurContext,
+                                             II,
+                                             StartLoc,
+                                             IsPack);
+  PushOnScopeChains(A, S);
+  return A;
 }
