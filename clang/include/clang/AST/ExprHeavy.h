@@ -132,8 +132,8 @@ public:
 
   // Iterators
   child_range children() {
-    return child_range(reinterpret_cast<Stmt**>(Body),
-                       reinterpret_cast<Stmt**>(Body) + 1);
+    auto *begin = reinterpret_cast<Stmt *>(Body);
+    return child_range(&begin, &begin + 1);
   }
 
   SourceLocation getBeginLoc() const LLVM_READONLY { return BeginLoc; }
