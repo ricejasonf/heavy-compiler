@@ -13778,8 +13778,10 @@ TreeTransform<Derived>::TransformHeavyMacroCallExpr(HeavyMacroCallExpr* E) {
 
   Expr* NewBody = NewBodyResult.get();
 
-  if (!getDerived().AlwaysRebuild() && !ArgChanged && D->getBody() != NewBody)
+  if (!getDerived().AlwaysRebuild() && !ArgChanged && D->getBody() == NewBody) {
+    llvm_unreachable("Top Level Decls only means we shouldn't get here right?");
     return E;
+  }
 
   return getDerived().RebuildHeavyMacroCallExpr(Loc, D, NewBody, Args);
 }

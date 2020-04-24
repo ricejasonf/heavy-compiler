@@ -7229,6 +7229,9 @@ public:
       return;
     VisitIgnoredValue(E);
   }
+
+  bool VisitHeavyMacroCallExpr(const HeavyMacroCallExpr *E)
+    { return StmtVisitorTy::Visit(E->getBody()); }
 };
 
 } // namespace
@@ -14151,8 +14154,11 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CoyieldExprClass:
   case Expr::HeavyMacroIdExprClass:
   case Expr::HeavyAliasIdExprClass:
-  case Expr::HeavyMacroCallExprClass:
     return ICEDiag(IK_NotICE, E->getBeginLoc());
+
+  case Expr::HeavyMacroCallExprClass: {
+    return CheckICE(cast<HeavyMacroCallExpr>(E)->getBody(), Ctx);
+  }
 
   case Expr::InitListExprClass: {
     // C++03 [dcl.init]p13: If T is a scalar type, then a declaration of the
