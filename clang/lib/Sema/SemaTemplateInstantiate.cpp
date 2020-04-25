@@ -1607,6 +1607,12 @@ TemplateInstantiator::TransformFunctionParmPackRefExpr(DeclRefExpr *E,
     TransformedDecl = Found->get<Decl*>();
   }
 
+  if (HeavyAliasDecl *AD = dyn_cast<HeavyAliasDecl>(TransformedDecl)) {
+    assert(AD->getBody() && "HeavyAlias is expected to alias something");
+    Sema::ExpandingExprAliasRAII ExpandingExprAlias(SemaRef);
+    return SemaRef.SubstExpr(AD->getBody(), {});
+  }
+
   // We have either an unexpanded pack or a specific expansion.
   return RebuildVarDeclRefExpr(cast<VarDecl>(TransformedDecl), E->getExprLoc());
 }
