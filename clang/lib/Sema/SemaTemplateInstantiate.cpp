@@ -3362,7 +3362,8 @@ LocalInstantiationScope::findInstantiationOf(const Decl *D) {
   // If we didn't find the decl, then we either have a sema bug, or we have a
   // forward reference to a label declaration.  Return null to indicate that
   // we have an uninstantiated label.
-  assert(isa<LabelDecl>(D) && "declaration not instantiated in this scope");
+  assert((isa<LabelDecl>(D) || SemaRef.ExpandingExprAlias) &&
+      "declaration not instantiated in this scope");
   return nullptr;
 }
 

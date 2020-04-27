@@ -58,7 +58,9 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
     return nullptr;
   }
 
-  ParseScope MacroScope(this, Scope::DeclScope);
+  TemplateParameterDepthRAII CurTemplateDepthTracker(TemplateParameterDepth);
+  Actions.PushFunctionScope();
+  ParseScope MacroScope(this, Scope::FnScope | Scope::DeclScope);
   Actions.PushDeclContext(Actions.getCurScope(), New);
   bool ParamsFail = ParseHeavyMacroParamList(ParamInfo);
 
@@ -76,12 +78,14 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
 
   // Fake the func (scope that is)
 
+  ++CurTemplateDepthTracker;
   ExprResult BodyResult = ParseExpression();
 
   Decl *TheDecl = Actions.ActOnFinishHeavyMacroDecl(getCurScope(), New, ParamInfo,
                                                     BodyResult);
   Actions.PopDeclContext();
   MacroScope.Exit();
+  Actions.PopFunctionScopeInfo();
 
   // Semicolon
 

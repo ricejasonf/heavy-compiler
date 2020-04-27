@@ -2375,11 +2375,13 @@ Sema::ActOnIdExpression(Scope *S, CXXScopeSpec &SS,
   if (R.isAmbiguous())
     return ExprError();
 
+#if 0 // FIXME (remove??)
   if (R.getAsSingle<HeavyAliasDecl>()) {
     return HeavyAliasIdExpr::Create(
                           Context, NameLoc,
                           R.getAsSingle<HeavyAliasDecl>());
   }
+#endif
   if (R.getAsSingle<HeavyMacroDecl>()) {
     return HeavyMacroIdExpr::Create(
                           Context, NameLoc,
@@ -16842,6 +16844,9 @@ static void DoMarkVarDeclReferenced(Sema &SemaRef, SourceLocation Loc,
   assert((!E || isa<DeclRefExpr>(E) || isa<MemberExpr>(E) ||
           isa<FunctionParmPackExpr>(E)) &&
          "Invalid Expr argument to DoMarkVarDeclReferenced");
+  if (isa<HeavyAliasDecl>(Var))
+    return;
+
   Var->setReferenced();
 
   if (Var->isInvalidDecl())

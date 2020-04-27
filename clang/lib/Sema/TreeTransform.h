@@ -9449,6 +9449,12 @@ TreeTransform<Derived>::TransformDeclRefExpr(DeclRefExpr *E) {
   if (!ND)
     return ExprError();
 
+  if (auto* AD = dyn_cast<HeavyAliasDecl>(ND)) {
+    assert(AD->getBody() && "HeavyAlias is expected to alias something");
+    Sema::ExpandingExprAliasRAII ExpandingExprAlias(SemaRef);
+    return SemaRef.SubstExpr(AD->getBody(), {});
+  }
+
   NamedDecl *Found = ND;
   if (E->getFoundDecl() != E->getDecl()) {
     Found = cast_or_null<NamedDecl>(
@@ -13738,6 +13744,7 @@ TreeTransform<Derived>::TransformHeavyMacroIdExpr(
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformHeavyAliasIdExpr(HeavyAliasIdExpr *E) {
+  llvm_unreachable("TODO REMOVE HeavyAliasIdExpr in favor of DeclRefExpr");
   HeavyAliasDecl* D = cast<HeavyAliasDecl>(
       getDerived().TransformDecl(E->getBeginLoc(),
                                  E->getDefinitionDecl()));
