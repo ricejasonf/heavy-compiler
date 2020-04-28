@@ -67,13 +67,13 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroIdExpr *Id,
 }
 
 ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
-                                         ArrayRef<Expr*> CallArgExprs,
+                                         ArrayRef<Expr*> ArgExprs,
                                          SourceLocation Loc) {
   // Defer instantiation if the args are dependent
   // This includes any unexpanded parameter pack
-  if (HeavyMacroCallExpr::hasDependentArgs(CallArgExprs)) {
+  if (HeavyMacroCallExpr::hasDependentArgs(ArgExprs)) {
     return HeavyMacroCallExpr::Create(Context, Loc, D,
-                                      nullptr, CallArgExprs);
+                                      nullptr, ArgExprs);
   }
 
   ArrayRef<HeavyAliasDecl*> OldParams = D->parameters();
@@ -85,13 +85,6 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
 
   LocalInstantiationScope Scope(*this, /*CombineWithOuterScope=*/true);
   InstantiatingTemplate Inst(*this, Loc, D);
-
-  llvm::SmallVector<Expr*, 16> ArgExprs;
-  ArgExprs.reserve(CallArgExprs.size());
-  for (Expr *E : CallArgExprs) {
-    ArgExprs.push_back(E);
-  }
-
 
   // We already know there is at most one param pack
   int PackSize = ArgExprs.size() - OldParams.size() + 1;

@@ -3434,16 +3434,6 @@ public:
                                      Sema::AtomicArgumentOrder::AST);
   }
 
-  // Build a new call to a heavy macro
-  //
-  // By default, just creates a new one with the given inputs
-  ExprResult RebuildHeavyMacroCallExpr(SourceLocation BeginLoc,
-                                       HeavyMacroDecl* D,
-                                       Expr *Body,
-                                       ArrayRef<Expr*> Args) {
-    return SemaRef.BuildHeavyMacroCallExpr(BeginLoc, D, Body, Args);
-  }
-
 private:
   TypeLoc TransformTypeInObjectScope(TypeLoc TL,
                                      QualType ObjectType,
@@ -13762,7 +13752,7 @@ TreeTransform<Derived>::TransformHeavyMacroCallExpr(HeavyMacroCallExpr* E) {
   HeavyMacroDecl *D = E->getDefinitionDecl();
   assert(D && "HeavyMacroCallExpr must have definition decl");
 
-  // Transform the arguments (no matter what I guess)
+  // Transform the arguments
 
   bool ArgChanged = false;
   SmallVector<Expr*, 8> Args;
@@ -13770,27 +13760,10 @@ TreeTransform<Derived>::TransformHeavyMacroCallExpr(HeavyMacroCallExpr* E) {
                                   Args, &ArgChanged))
     return ExprError();
 
-  // Start from scratch if the Body is not instantiated
-  if (ArgChanged && !D->getBody()) {
-    llvm_unreachable("Top Level Decls only means we shouldn't get here right?");
-    return getSema().ActOnHeavyMacroCallExpr(D, Args, Loc);
-  }
     
-  // Transform the Body 
+  // Rebuild the HeavyMacroCallExpr
 
-  ExprResult NewBodyResult = getDerived().TransformExpr(D->getBody());
-  if (NewBodyResult.isInvalid()) {
-    return ExprError();
-  }
-
-  Expr* NewBody = NewBodyResult.get();
-
-  if (!getDerived().AlwaysRebuild() && !ArgChanged && D->getBody() == NewBody) {
-    llvm_unreachable("Top Level Decls only means we shouldn't get here right?");
-    return E;
-  }
-
-  return getDerived().RebuildHeavyMacroCallExpr(Loc, D, NewBody, Args);
+  return getSema().ActOnHeavyMacroCallExpr(D, Args, Loc);
 }
 
 } // end namespace clang

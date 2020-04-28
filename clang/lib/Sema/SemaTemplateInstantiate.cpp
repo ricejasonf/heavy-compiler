@@ -832,6 +832,8 @@ Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
       // context, depending on what else is on the stack.
       if (isa<TypeAliasTemplateDecl>(Active->Entity))
         break;
+      if (isa<HeavyMacroDecl>(Active->Entity))
+        break;
       LLVM_FALLTHROUGH;
     case CodeSynthesisContext::DefaultFunctionArgumentInstantiation:
     case CodeSynthesisContext::ExceptionSpecInstantiation:

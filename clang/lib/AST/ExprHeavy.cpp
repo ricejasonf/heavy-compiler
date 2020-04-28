@@ -61,8 +61,6 @@ HeavyMacroCallExpr::Create(
     std::copy(Args.begin(), Args.end(), New->ArgInfo);
   }
 
-  New->ArgInfo = new (C) Expr*[Args.size()];
-
   New->Body = Body;
   for (unsigned I = 0; I < Args.size(); ++I) {
     if (Args[I]->isTypeDependent())
@@ -74,6 +72,7 @@ HeavyMacroCallExpr::Create(
     if (Args[I]->containsUnexpandedParameterPack())
       New->setContainsUnexpandedParameterPack(true);
   }
+
 
   return New;
 }
