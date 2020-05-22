@@ -156,7 +156,5 @@ ExprResult Sema::BuildHeavyMacroCallExpr(SourceLocation BeginLoc,
                                          Expr *Body,
                                          ArrayRef<Expr*> Args) {
   // The Body is not instantiated until all args are non-dependent
-  // (ie value-dependent)
-
   return HeavyMacroCallExpr::Create(Context, BeginLoc, OrigDecl, Body, Args);
 }

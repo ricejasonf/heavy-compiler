@@ -33,6 +33,8 @@ static_assert(5 * add(2, 3) == 25);
 static_assert(pack_front(1, 2, 3) == 1);
 static_assert(pack_back(1, 2, 3) == 3);
 static_assert(pack_middle(1, 2, 3) == 2);
+using T = decltype(id(5));
+#if 0
 
 // Instantiating Dependent Call Expressions
 
@@ -62,3 +64,4 @@ auto check_local_capture() {
   auto f2 = lambda(a);  // expected-error {{variable 'a' cannot be implicitly captured in a lambda with no capture-default specified}}
   auto f3 = capture_value(a);
 }
+#endif

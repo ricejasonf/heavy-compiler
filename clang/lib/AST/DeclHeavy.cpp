@@ -81,7 +81,7 @@ HeavyAliasDecl *HeavyAliasDecl::Create(
 
   HeavyAliasDecl *New = new (C, DC) HeavyAliasDecl(C, DC, I, TI, T, StartL);
 
-  assert(!IsPack || New->isParameterPack()
+  assert((!IsPack || New->isParameterPack())
       && "HeavyAliasDecl should contain parameter pack.");
 
   return New;

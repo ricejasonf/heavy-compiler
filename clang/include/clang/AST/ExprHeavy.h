@@ -83,6 +83,9 @@ public:
   child_range children() {
     return child_range(child_iterator(), child_iterator());
   }
+  const_child_range children() const {
+    return child_range(child_iterator(), child_iterator());
+  }
 
   SourceLocation getBeginLoc() const LLVM_READONLY { return BeginLoc; }
   SourceLocation getEndLoc() const LLVM_READONLY { return BeginLoc; }
@@ -100,7 +103,7 @@ class HeavyMacroCallExpr : public Expr {
   SourceLocation BeginLoc;
   HeavyMacroDecl* DefinitionDecl;
   Expr** ArgInfo;
-  Expr* Body;
+  Expr* Body = nullptr;
   unsigned NumArgs = 0;
 
   HeavyMacroCallExpr(SourceLocation BL, HeavyMacroDecl *D,
@@ -132,8 +135,22 @@ public:
 
   // Iterators
   child_range children() {
-    auto *begin = reinterpret_cast<Stmt *>(Body);
-    return child_range(&begin, &begin + 1);
+    if (Body == nullptr) {
+      return child_range(child_iterator(), child_iterator());
+    } else {
+      assert(isa<ParenExpr>(Body) && "HeavyMacro body is always a ParenExpr");
+      return Body->children();
+    }
+  }
+
+  // Iterators
+  const_child_range children() const {
+    if (Body == nullptr) {
+      return child_range(child_iterator(), child_iterator());
+    } else {
+      assert(isa<ParenExpr>(Body) && "HeavyMacro body is always a ParenExpr");
+      return Body->children();
+    }
   }
 
   SourceLocation getBeginLoc() const LLVM_READONLY { return BeginLoc; }
@@ -171,6 +188,9 @@ public:
 
   // Iterators
   child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+  const_child_range children() const {
     return child_range(child_iterator(), child_iterator());
   }
 
