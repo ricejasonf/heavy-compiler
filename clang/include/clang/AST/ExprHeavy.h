@@ -136,7 +136,10 @@ public:
   // Iterators
   child_range children() {
     if (Body == nullptr) {
-      return child_range(child_iterator(), child_iterator());
+      // This is a dependent call expr so return the arguments
+      Stmt** begin = reinterpret_cast<Stmt**>(ArgInfo);
+      Stmt** end = begin + NumArgs;
+      return child_range(begin, end);
     } else {
       assert(isa<ParenExpr>(Body) && "HeavyMacro body is always a ParenExpr");
       return Body->children();

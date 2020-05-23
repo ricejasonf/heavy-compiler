@@ -83,7 +83,9 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
     return ExprError();
   }
 
-  LocalInstantiationScope Scope(*this, /*CombineWithOuterScope=*/true);
+  // heavy_macro is a top level declaration only so we
+  // do not combine with outer scope
+  LocalInstantiationScope Scope(*this, /*CombineWithOuterScope=*/false);
   InstantiatingTemplate Inst(*this, Loc, D);
 
   // We already know there is at most one param pack
