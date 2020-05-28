@@ -13757,13 +13757,21 @@ TreeTransform<Derived>::TransformHeavyMacroCallExpr(HeavyMacroCallExpr* E) {
   bool ArgChanged = false;
   SmallVector<Expr*, 8> Args;
   if (getDerived().TransformExprs(E->getArgs().data(), E->getNumArgs(), true,
-                                  Args, &ArgChanged))
+                                  Args, &ArgChanged)) {
     return ExprError();
+  }
 
-    
-  // Rebuild the HeavyMacroCallExpr
+  if (!E->getBody()) {
+    return getSema().ActOnHeavyMacroCallExpr(D, Args, Loc);
+  }
 
-  return getSema().ActOnHeavyMacroCallExpr(D, Args, Loc);
+  ExprResult BodyResult = getDerived().TransformExpr(E->getBody());
+  if (BodyResult.isInvalid()) {
+    return ExprError();
+  }
+
+  return getSema().BuildHeavyMacroCallExpr(E->getBeginLoc(), D,
+                                           BodyResult.get(), Args);
 }
 
 } // end namespace clang
