@@ -64,14 +64,12 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
   Actions.PushDeclContext(Actions.getCurScope(), New);
   bool ParamsFail = ParseHeavyMacroParamList(ParamInfo);
 
-  if (ParamsFail) {
-    return nullptr;
-  }
-
   // Body
 
-  if (ExpectAndConsume(tok::equal)) {
+  if (ParamsFail || ExpectAndConsume(tok::equal)) {
+    MacroScope.Exit();
     Actions.PopDeclContext();
+    Actions.PopFunctionScopeInfo();
     SkipUntil(tok::semi);
     return nullptr;
   }
