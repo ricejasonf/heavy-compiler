@@ -1319,6 +1319,10 @@ public:
   llvm::Constant *VisitUnaryExtension(const UnaryOperator *E, QualType T) {
     return Visit(E->getSubExpr(), T);
   }
+  
+  llvm::Constant *VisitHeavyMacroCallExpr(HeavyMacroCallExpr *HE, QualType T) {
+    return Visit(HE->getBody(), T);
+  }
 
   // Utility methods
   llvm::Type *ConvertType(QualType T) {

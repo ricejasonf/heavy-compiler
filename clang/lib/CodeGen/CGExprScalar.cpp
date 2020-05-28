@@ -438,6 +438,7 @@ public:
   Value *VisitParenExpr(ParenExpr *PE) {
     return Visit(PE->getSubExpr());
   }
+
   Value *VisitSubstNonTypeTemplateParmExpr(SubstNonTypeTemplateParmExpr *E) {
     return Visit(E->getReplacement());
   }
@@ -847,6 +848,10 @@ public:
   }
   Value *VisitAsTypeExpr(AsTypeExpr *CE);
   Value *VisitAtomicExpr(AtomicExpr *AE);
+
+  Value *VisitHeavyMacroCallExpr(HeavyMacroCallExpr *HE) {
+    return Visit(HE->getBody());
+  }
 };
 }  // end anonymous namespace.
 

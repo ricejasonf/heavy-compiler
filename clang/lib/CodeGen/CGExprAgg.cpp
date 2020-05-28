@@ -206,6 +206,7 @@ public:
     RValue Res = CGF.EmitAtomicExpr(E);
     EmitFinalDestCopy(E->getType(), Res);
   }
+  void VisitHeavyMacroCallExpr(HeavyMacroCallExpr *HE) { Visit(HE->getBody()); }
 };
 }  // end anonymous namespace.
 

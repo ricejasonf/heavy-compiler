@@ -1378,6 +1378,8 @@ LValue CodeGenFunction::EmitLValue(const Expr *E) {
     return EmitCoawaitLValue(cast<CoawaitExpr>(E));
   case Expr::CoyieldExprClass:
     return EmitCoyieldLValue(cast<CoyieldExpr>(E));
+  case Expr::HeavyMacroCallExprClass:
+    return EmitLValue(cast<HeavyMacroCallExpr>(E)->getBody());
   }
 }
 
