@@ -31,7 +31,7 @@
 namespace clang {
 
 class HeavyAliasDecl : public VarDecl {
-  Expr* Body;
+  Expr* Body = nullptr;
 
   HeavyAliasDecl(ASTContext& C, DeclContext* DC, IdentifierInfo *I,
                  TypeSourceInfo *TI, QualType T, SourceLocation SL)

@@ -13761,6 +13761,12 @@ TreeTransform<Derived>::TransformHeavyMacroCallExpr(HeavyMacroCallExpr* E) {
     return ExprError();
   }
 
+
+  if (!getDerived().AlwaysRebuild() || ArgChanged or !E->getBody()) {
+    return getSema().ActOnHeavyMacroCallExpr(D, Args, Loc);
+  }
+  return E;
+#if 0
   if (!E->getBody()) {
     return getSema().ActOnHeavyMacroCallExpr(D, Args, Loc);
   }
@@ -13772,6 +13778,7 @@ TreeTransform<Derived>::TransformHeavyMacroCallExpr(HeavyMacroCallExpr* E) {
 
   return getSema().BuildHeavyMacroCallExpr(E->getBeginLoc(), D,
                                            BodyResult.get(), Args);
+#endif
 }
 
 } // end namespace clang

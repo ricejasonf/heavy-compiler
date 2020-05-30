@@ -1013,6 +1013,9 @@ namespace {
 
       SemaRef.CurrentInstantiationScope->InstantiatedLocal(Old, New);
 
+      // Expanding Heavy Macros should never be dependent. (I think)
+      if (SemaRef.ExpandingExprAlias) return;
+
       // We recreated a local declaration, but not by instantiating it. There
       // may be pending dependent diagnostics to produce.
       if (auto *DC = dyn_cast<DeclContext>(Old))
@@ -1680,6 +1683,27 @@ QualType
 TemplateInstantiator::TransformTemplateTypeParmType(TypeLocBuilder &TLB,
                                                 TemplateTypeParmTypeLoc TL) {
   const TemplateTypeParmType *T = TL.getTypePtr();
+
+  if (SemaRef.ExpandingExprAlias && SemaRef.getCurGenericLambda()) {
+    // ExpandingExprAlias within a lambda
+    // The type and depth were already transformed
+    // in the param decl
+    TemplateTypeParmDecl *NewTTPDecl = cast_or_null<TemplateTypeParmDecl>(
+                                  TransformDecl(TL.getNameLoc(), T->getDecl()));
+    if (NewTTPDecl) {
+      QualType Result = QualType(NewTTPDecl->getTypeForDecl(), 0);
+      TemplateTypeParmTypeLoc NewTL = TLB.push<TemplateTypeParmTypeLoc>(Result);
+      NewTL.setNameLoc(TL.getNameLoc());
+      return Result;
+    }
+
+    // Not sure if it ever gets here
+    TemplateTypeParmTypeLoc NewTL
+      = TLB.push<TemplateTypeParmTypeLoc>(TL.getType());
+    NewTL.setNameLoc(TL.getNameLoc());
+    return TL.getType();
+  }
+
   if (T->getDepth() < TemplateArgs.getNumLevels()) {
     // Replace the template type parameter with its corresponding
     // template argument.
@@ -2436,7 +2460,9 @@ Sema::InstantiateClass(SourceLocation PointOfInstantiation,
   // If this is an instantiation of a local class, merge this local
   // instantiation scope with the enclosing scope. Otherwise, every
   // instantiation of a class has its own local instantiation scope.
-  bool MergeWithParentScope = !Instantiation->isDefinedOutsideFunctionOrMethod();
+  bool MergeWithParentScope =
+    !Instantiation->isDefinedOutsideFunctionOrMethod() ||
+    isa<HeavyMacroDecl>(Pattern->getDeclContext());
   LocalInstantiationScope Scope(*this, MergeWithParentScope);
 
   // Some class state isn't processed immediately but delayed till class

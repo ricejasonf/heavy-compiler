@@ -8257,7 +8257,7 @@ public:
   // when substituting a HeavyAliasId with an Expr
   // This affects the context of contained variable
   // declarations which must also be rebuilt.
-  bool ExpandingExprAlias;
+  bool ExpandingExprAlias = false;
 
   class ExpandingExprAliasRAII {
     Sema &Self;
