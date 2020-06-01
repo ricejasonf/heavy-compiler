@@ -71,7 +71,8 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
                                          SourceLocation Loc) {
   // Defer instantiation if the args are dependent
   // This includes any unexpanded parameter pack
-  if (HeavyMacroCallExpr::hasDependentArgs(ArgExprs)) {
+  if (CurContext->isDependentContext() ||
+      HeavyMacroCallExpr::hasDependentArgs(ArgExprs)) {
     return HeavyMacroCallExpr::Create(Context, Loc, D,
                                       nullptr, ArgExprs);
   }

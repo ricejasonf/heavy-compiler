@@ -2519,8 +2519,14 @@ void StmtPrinter::VisitHeavyAliasIdExpr(
 
 void StmtPrinter::VisitHeavyMacroCallExpr(
                                HeavyMacroCallExpr *Node) {
-  // TODO print the call expr with the original arguments
-  llvm_unreachable("TODO print HeavyMacroCallExpr");
+  OS << Node->getDefinitionDecl()->getName();
+  OS << "(";
+  auto Args = Node->getArgs();
+  for (unsigned i = 0, e = Args.size(); i != e; ++i) {
+    if (i) OS << ", ";
+    PrintExpr(Args[i]);
+  }
+  OS << ")";
 }
 
 //===----------------------------------------------------------------------===//
