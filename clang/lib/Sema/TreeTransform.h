@@ -9440,7 +9440,10 @@ TreeTransform<Derived>::TransformDeclRefExpr(DeclRefExpr *E) {
     return ExprError();
 
   if (auto* AD = dyn_cast<HeavyAliasDecl>(ND)) {
-    assert(AD->getBody() && "HeavyAlias is expected to alias something");
+    if (!AD->getBody()) {
+      // This happens in Typos::TryTransform and possibly others
+      return E;
+    }
     Sema::ExpandingExprAliasRAII ExpandingExprAlias(SemaRef);
     return SemaRef.SubstExpr(AD->getBody(), {});
   }

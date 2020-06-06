@@ -48,7 +48,6 @@ HeavyMacroCallExpr::Create(
   if (Body) {
     QT = Body->getType();
     VK = Body->getValueKind();
-    //assert(Body->getType() != QualType(C.DependentTy) && "WHY ARE WE HERE WITH AN INSTANTIATED BODY?");
   } else {
     QT = C.DependentTy;
     VK = VK_RValue;

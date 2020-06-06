@@ -91,7 +91,12 @@ HeavyMacroDecl *Sema::ActOnFinishHeavyMacroDecl(
   if (Body->containsUnexpandedParameterPack()) {
     DiagnoseUnexpandedParameterPack(Body, UPPC_Expression);
   }
-  New->setBody(Body);
+
+  ExprResult CorrectedExpr = CorrectDelayedTyposInExpr(Body);
+  if (CorrectedExpr.isInvalid())
+    return nullptr;
+
+  New->setBody(CorrectedExpr.get());
 
   // Params
 

@@ -69,6 +69,11 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroIdExpr *Id,
 ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
                                          ArrayRef<Expr*> ArgExprs,
                                          SourceLocation Loc) {
+  Expr *OutputExpr = D->getBody();
+  if (!OutputExpr) {
+    return ExprError();
+  }
+
   // Defer instantiation if the args are dependent
   // This includes any unexpanded parameter pack
   if (CurContext->isDependentContext() ||
@@ -78,11 +83,6 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
   }
 
   ArrayRef<HeavyAliasDecl*> OldParams = D->parameters();
-
-  Expr *OutputExpr = D->getBody();
-  if (!OutputExpr) {
-    return ExprError();
-  }
 
   // heavy_macro is a top level declaration only so we
   // do not combine with outer scope
