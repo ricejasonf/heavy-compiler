@@ -83,8 +83,10 @@ HeavyMacroDecl *Sema::ActOnFinishHeavyMacroDecl(
                           ExprResult BodyResult) {
   // Body
 
-  if (!New || BodyResult.isInvalid())
+  if (!New || BodyResult.isInvalid()) {
+    New->setInvalidDecl();
     return nullptr;
+  }
 
   Expr *Body = BodyResult.getAs<Expr>();
 
@@ -93,8 +95,10 @@ HeavyMacroDecl *Sema::ActOnFinishHeavyMacroDecl(
   }
 
   ExprResult CorrectedExpr = CorrectDelayedTyposInExpr(Body);
-  if (CorrectedExpr.isInvalid())
+  if (CorrectedExpr.isInvalid()) {
+    New->setInvalidDecl();
     return nullptr;
+  }
 
   New->setBody(CorrectedExpr.get());
 

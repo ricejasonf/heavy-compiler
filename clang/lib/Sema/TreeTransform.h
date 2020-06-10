@@ -13754,6 +13754,7 @@ TreeTransform<Derived>::TransformHeavyMacroCallExpr(HeavyMacroCallExpr* E) {
   SourceLocation Loc = E->getBeginLoc();
   HeavyMacroDecl *D = E->getDefinitionDecl();
   assert(D && "HeavyMacroCallExpr must have definition decl");
+  assert(!D->isInvalidDecl() && "heavy_macro must have valid decl");
 
   // Transform the arguments
 

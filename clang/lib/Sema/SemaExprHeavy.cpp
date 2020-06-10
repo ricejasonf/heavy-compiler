@@ -69,8 +69,7 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroIdExpr *Id,
 ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
                                          ArrayRef<Expr*> ArgExprs,
                                          SourceLocation Loc) {
-  Expr *OutputExpr = D->getBody();
-  if (!OutputExpr) {
+  if (D->isInvalidDecl()) {
     return ExprError();
   }
 
@@ -81,6 +80,9 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
     return HeavyMacroCallExpr::Create(Context, Loc, D,
                                       nullptr, ArgExprs);
   }
+
+  Expr *OutputExpr = D->getBody();
+  assert(OutputExpr && "heavy_macro must have a body");
 
   ArrayRef<HeavyAliasDecl*> OldParams = D->parameters();
 

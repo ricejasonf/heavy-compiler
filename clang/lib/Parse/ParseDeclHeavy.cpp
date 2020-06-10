@@ -71,6 +71,7 @@ Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {
     Actions.PopDeclContext();
     Actions.PopFunctionScopeInfo();
     SkipUntil(tok::semi);
+    New->setInvalidDecl();
     return nullptr;
   }
 

@@ -73,6 +73,11 @@ HeavyMacroCallExpr::Create(
       New->setContainsUnexpandedParameterPack(true);
   }
 
+  if (!New->Body) {
+    // if there is no instantiated body
+    New->setInstantiationDependent(true);
+  }
+
 
   return New;
 }
