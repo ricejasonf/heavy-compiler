@@ -90,6 +90,9 @@ ExprResult Sema::ActOnHeavyMacroCallExpr(HeavyMacroDecl* D,
   // do not combine with outer scope
   LocalInstantiationScope Scope(*this, /*CombineWithOuterScope=*/false);
   InstantiatingTemplate Inst(*this, Loc, D);
+  if (Inst.isInvalid()) {
+    return ExprError();
+  }
 
   // We already know there is at most one param pack
   int PackSize = ArgExprs.size() - OldParams.size() + 1;
