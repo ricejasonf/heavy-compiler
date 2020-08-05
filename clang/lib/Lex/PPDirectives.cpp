@@ -939,6 +939,8 @@ void Preprocessor::HandleDirective(Token &Result) {
       case tok::pp_include_next:
       case tok::pp___include_macros:
       case tok::pp_pragma:
+      case tok::pp_heavy_begin:
+      case tok::pp_heavy_end:
         Diag(Result, diag::err_embedded_directive) << II->getName();
         Diag(*ArgMacro, diag::note_macro_expansion_here)
             << ArgMacro->getIdentifierInfo();
@@ -1048,6 +1050,14 @@ void Preprocessor::HandleDirective(Token &Result) {
     case tok::pp___private_macro:
       if (getLangOpts().Modules)
         return HandleMacroPrivateDirective();
+      break;
+
+    case tok::pp_heavy_begin:
+      return HandleHeavyBeginDirective(Result);
+      break;
+    case tok::pp_heavy_end:
+      // heavy_end should be handled by the heavy scheme lexer
+      Diag(Result, diag::unexpected_heavy_end_directive);
       break;
     }
     break;
@@ -3083,4 +3093,17 @@ void Preprocessor::HandleElifDirective(Token &ElifToken,
   SkipExcludedConditionalBlock(
       HashToken.getLocation(), CI.IfLoc, /*Foundnonskip*/ true,
       /*FoundElse*/ CI.FoundElse, ElifToken.getLocation());
+}
+
+void Preprocessor::HandleHeavyBeginDirective(Token &HeavyBeginToken) {
+  // TODO uhh start parsing scheme until we hit
+  // the terminator token `#heavy_end`
+  HeavyScheme->StartParsing(*this);
+  // Once it finishes it should have a buffer of tokens for us to emit
+  // (if any)
+  if (HeavyScheme->hasTokens()) {
+    EnterTokenStream(HeavyScheme->getTokens(),
+                     /*DisableMacroExpansion=*/false,
+                     /*IsReinject=*/false);
+  }
 }

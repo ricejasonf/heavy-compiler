@@ -120,6 +120,10 @@ PPKEYWORD(unassert)
 PPKEYWORD(__public_macro)
 PPKEYWORD(__private_macro)
 
+// Heavy extensions
+PPKEYWORD(heavy_begin)
+PPKEYWORD(heavy_end)
+
 //===----------------------------------------------------------------------===//
 // Language keywords.
 //===----------------------------------------------------------------------===//
