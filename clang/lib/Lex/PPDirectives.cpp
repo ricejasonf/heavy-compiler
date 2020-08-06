@@ -1053,11 +1053,13 @@ void Preprocessor::HandleDirective(Token &Result) {
       break;
 
     case tok::pp_heavy_begin:
+      // TODO these should send back annot_heavy* tokens
+      // for the signal the ParserHeavyScheme object to
+      // start/stop lexing
       return HandleHeavyBeginDirective(Result);
       break;
     case tok::pp_heavy_end:
-      // heavy_end should be handled by the heavy scheme lexer
-      Diag(Result, diag::unexpected_heavy_end_directive);
+      return HandleHeavyEndDirective(Result);
       break;
     }
     break;

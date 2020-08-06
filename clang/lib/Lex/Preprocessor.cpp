@@ -1402,3 +1402,23 @@ void Preprocessor::createPreprocessingRecord() {
   Record = new PreprocessingRecord(getSourceManager());
   addPPCallbacks(std::unique_ptr<PPCallbacks>(Record));
 }
+
+void Preprocessor::InitHeavySchemeLexer() {
+  if (!HeavyScheme) {
+    TheHeavySchemeLexer = new HeavySchemeLexer();
+  }
+  TheHeavySchemeLexer->Init(CurLexer.BufferStart,
+                            CurLexer.BufferEnd,
+                            CurLexer.BufferPtr);
+}
+
+void Preprocessor::FinishHeavySchemeLexer() {
+  // Have the CurLexer resume on the char
+  // immediately AFTER `heavy_end`
+  unsigned Offset = TheHeavySchemeLexer->GetByteOffset();
+  CurLexer->SetByteOffset(Offset, /*IsStartOfLine=*/false);
+}
+
+void Preprocessor::LexHeavyScheme(Token& tok) {
+  TheHeavySchemeLexer->Lex(tok);
+}

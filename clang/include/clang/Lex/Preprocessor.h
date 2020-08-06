@@ -2341,6 +2341,14 @@ private:
   /// conditional directives.
   ExcludedPreprocessorDirectiveSkipMapping
       *ExcludedConditionalDirectiveSkipMappings;
+
+public:
+  void InitHeavySchemeLexer();
+  void FinishHeavySchemeLexer();
+  void LexHeavyScheme(Token& Tok);
+
+private:
+  std::unique_ptr<HeavySchemeLexer> TheHeavySchemeLexer;
 };
 
 /// Abstract base class that describes a handler that will receive
