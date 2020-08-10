@@ -125,6 +125,11 @@ void HeavySchemeLexer::ProcessWhitespace(Token& Tok) {
   // adds whitespace flags to Tok if needed
   const char* CurPtr = BufferPtr;
   char c = *CurPtr;
+
+  if (!isWhitespace(c)) {
+    return;
+  }
+
   while (true) {
     while (isHorizontalWhitespace(c)) {
       c = getAndAdvanceChar(CurPtr);
@@ -134,13 +139,15 @@ void HeavySchemeLexer::ProcessWhitespace(Token& Tok) {
       break;
     }
 
-    Token.setFlag(Token::StartOfLine);
-    Token.clearFlag(Token::LeadingSpace);
     c = getAndAdvanceChar(CurPtr);
   }
 
-  if (CurPtr != BufferPtr) {
+  if (isHorizontalWhitespace(c)) {
     Token.setFlag(Token::LeadingSpace);
+  } else if (isVerticalWhitespace(c)) {
+    Token.setFlag(Token::StartOfLine);
+  } else {
+    llvm_unreachable("Should be a whitespace character.");
   }
 
   // Update the buffer location to the first non-whitespace character.
