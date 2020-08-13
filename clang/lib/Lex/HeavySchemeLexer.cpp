@@ -94,10 +94,11 @@ namespace {
 
 void HeavySchemeLexer::Lex(Token& Tok) {
   const char* CurPtr = BufferPtr;
+  tok::TokenKind Kind;
   ProcessWhitespace(Tok, CurPtr);
 
-  tok::TokenKind Kind;
-  char c = getAndAdvanceChar(CurPtr);
+  // Act on the current character
+  char c = *CurPtr;
   // There are all considered "initial characters".
   switch(c) {
   // Identifiers.
@@ -131,6 +132,12 @@ void HeavySchemeLexer::Lex(Token& Tok) {
     break;
   case ')':
     Kind = tok::r_paren;
+    break;
+  case ',':
+    Kind = tok::comma;
+    break;
+  case '`':
+    Kind = tok::heavy_grave;
     break;
   default:
     Kind = tok::unknown;
@@ -223,13 +230,47 @@ void HeavySchemeLexer::LexNumber(Token& Tok, const char *CurPtr) {
 // These could be numbers, character constants, or other literals
 // such as #t #f for true and false
 void HeavySchemeLexer::LexSharpLiteral(Token& Tok, const char *CurPtr) {
-  // TODO implement lexing this type of object
-  LexUnknown(Tok, CurPtr);
+  char c = getAndAdvanceChar(CurPtr);
+  // If we expect the token to end after
+  // `c` then we set RequiresDelimiter
+  bool RequiresDelimiter = false;
+  switch (c) {
+  case '\\':
+    SkipUntilDelimiter(CurPtr);
+    FormTokenWithChars(Tok, CurPtr, tok::char_constant);
+    return;
+  case 't':
+    Kind = tok::heavy_true;
+    RequiresDelimiter = true;
+    break;
+  case 'f':
+    Kind = tok::heavy_false;
+    RequiresDelimiter = true;
+    break;
+  case '(':
+    Kind = tok::heavy_vector_lparen;
+    break;
+  // unsupported radix R specifiers
+  case 'd':
+  case 'b': case 'o': case 'x':
+  // unsupported exactness specifiers
+  case 'i': case 'e':
+  default:
+    Kind = tok::unknown;
+    SkipUntilDelimiter(CurPtr);
+  }
+
+  // We should be at a delimiter at this point or
+  // we are dealing with something invalid
+  if (RequiresDelimiter && !isDelimiter(*CurPtr)) {
+    SkipUntilDelimiter(CurPtr);
+    FormTokenWithChars(Tok, CurPtr, tok_unknown);
+  } else {
+    FormTokenWithChars(Tok, CurPtr, Kind);
+  }
 }
 
 void HeavySchemeLexer::LexStringLiteral(Token& Tok, const char *CurPtr) {
-  // TODO implement lexing this type of object
-  LexUnknown(Tok, CurPtr);
   while (true) {
     char c = getAndAdvanceChar(CurPtr);
     if (c == '"')
@@ -244,13 +285,18 @@ void HeavySchemeLexer::LexStringLiteral(Token& Tok, const char *CurPtr) {
   FormTokenWithChars(Tok, CurPtr, tok::string_literal);
 }
 
+void HeavySchemeLexer::LexCharacterLiteral(Token& Tok, const char *CurPtr) {
+  SkipUntilDelimiter(CurPtr);
+  FormTokenWithChars(Tok, CurPtr, tok::char_constant);
+}
+
 void HeavySchemeLexer::LexUnknown(Token& Tok, const char *CurPtr) {
-  // Skip through until we find a delimiter
-  char c;
-  do {
-    c = getAndAdvanceChar(CurPtr);
-  } while (!isDelimiter(c));
+  SkipUntilDelimiter(CurPtr);
   FormTokenWithChars(Tok, CurPtr, tok::unknown);
+}
+
+vois HeavySchemeLexer::SkipUntilDelimiter(const char *CurPtr) {
+  while (!isDelimiter(getAndAdvanceChar(CurPtr))) { }
 }
 
 void HeavySchemeLexer::ProcessWhitespace(Token& Tok, const char *&CurPtr) {

@@ -57,6 +57,7 @@ private:
   void LexNumber(Token& Tok, const char *CurPtr);
   void LexSharpLiteral(Token& Tok, const char *CurPtr);
   void LexUnknown(Token& Tok, const char *CurPtr);
+  void SkipUntilDelimiter(const char *CurPtr);
   void ProcessWhitespace(Token& Tok, const char *&CurPtr);
 
   char getAndAdvanceChar(const char *&Ptr) {
