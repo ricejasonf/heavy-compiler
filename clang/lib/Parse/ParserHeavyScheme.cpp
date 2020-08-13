@@ -17,3 +17,39 @@
 #include "clang/Sema/Scope.h"
 #include "llvm/Support/Path.h"
 using namespace clang;
+
+
+bool ParserHeavyScheme::Parse() {
+  assert(Tok == tok::kw_heavy_begin);
+  PP.InitHeavySchemeLexer();
+
+  while (true) {
+    PP.LexHeavyScheme(Tok);
+    switch (Tok.getKind()) {
+    case tok::unknown:
+    case tok::eof:
+    case tok::kw_heavy_end:
+      return Finish(Tok.getKind());
+    default:
+      // uhhh create ast node I guess?
+    }
+  }
+
+  // Return control to Parser
+  return Finish();
+}
+
+bool Finish(TokenKind Kind) {
+  // Update Preprocessor with
+  // the current file position
+  PP.FinishHeavySchemeLexer();
+
+  if (Kind != tok::kw_heavy_end) {
+    // TODO emit diagnostic for unexpected token
+    return true;
+  }
+
+  // TODO check that parens were closed properly
+  bool Result = false;
+  return Result;
+}

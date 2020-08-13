@@ -29,9 +29,8 @@ class HeavySchemeLexer {
   const char* BufferStart;
   const char* BufferEnd;
   const char* BufferPtr;
-  // CouldBePPDirective means that we are at the top level and
-  // the start of a line (not including whitespace)
-  bool IsAtStartOfLine;
+  bool IsAtStartOfLine = false;
+  bool IsWithinAngleBracketList = false;
 
 public:
   void Init(const char* BS,
@@ -43,15 +42,22 @@ public:
   }
 
   unsigned GetByteOffset() {
-    return BufferPtr - BufferStart;
+    if (BufferPtr > BufferEnd)
+      return BufferEnd - BufferStart;
+    else
+      return BufferPtr - BufferStart;
   }
   
   void Lex(Token& Tok);
 private:
-  void LexIdentifer(Token& Tok);
-  void LexLiteral(Token& Tok);
-  void LexStringLiteral(Token& Tok);
-  void ProcessWhitespace(Token& Tok);
+  void Lex(Token& Tok);
+  void LexIdentifier(Token& Tok, const char *CurPtr);
+  void LexNumberOrIdentifier(Token& Tok, const char *CurPtr);
+  void LexNumberOrEllipsis(Token& Tok, const char *CurPtr);
+  void LexNumber(Token& Tok, const char *CurPtr);
+  void LexSharpLiteral(Token& Tok, const char *CurPtr);
+  void LexUnknown(Token& Tok, const char *CurPtr);
+  void ProcessWhitespace(Token& Tok, const char *&CurPtr);
 
   char getAndAdvanceChar(const char *&Ptr) {
     return *Ptr++;
