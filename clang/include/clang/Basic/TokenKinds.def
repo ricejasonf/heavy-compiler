@@ -860,8 +860,11 @@ ANNOTATION(header_unit)
 KEYWORD(heavy_macro,  KEYHEAVY)
 KEYWORD(heavy_begin, KEYHEAVY)
 KEYWORD(heavy_end, KEYHEAVY)
+
+// HeavyScheme specific punctuators
 PUNCTUATOR(heavy_vector_lparen, "#(")
 PUNCTUATOR(heavy_grave, "`")
+PUNCTUATOR(heavy_comma_at, ",@")
 
 #undef PRAGMA_ANNOTATION
 #undef ANNOTATION

@@ -1405,9 +1405,10 @@ void Preprocessor::createPreprocessingRecord() {
 
 void Preprocessor::InitHeavySchemeLexer() {
   if (!HeavyScheme) {
-    TheHeavySchemeLexer = new HeavySchemeLexer();
+    TheHeavySchemeLexer = new HeavySchemeLexer(*this);
   }
-  TheHeavySchemeLexer->Init(CurLexer.BufferStart,
+  TheHeavySchemeLexer->Init(CurLexer.getFileLoc(),
+                            CurLexer.BufferStart,
                             CurLexer.BufferEnd,
                             CurLexer.BufferPtr);
 }

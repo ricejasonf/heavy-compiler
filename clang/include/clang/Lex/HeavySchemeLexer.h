@@ -26,16 +26,26 @@ class SourceManager;
 
 class HeavySchemeLexer {
   friend class Preprocessor;
-  const char* BufferStart;
-  const char* BufferEnd;
-  const char* BufferPtr;
+  IdentifierInfo* Ident_heavy_begin = nullptr;
+  IdentifierInfo* Ident_heavy_end = nullptr;
+  SourceLocation FileLoc;
+  const char* BufferStart = nullptr;
+  const char* BufferEnd = nullptr;
+  const char* BufferPtr = nullptr;
   bool IsAtStartOfLine = false;
   bool IsWithinAngleBracketList = false;
 
+  HeavySchemeLexer(Preprocessor &PP) 
+    , Ident_heavy_begin(PP.getIdentifierInfo("heavy_begin"))
+    , Ident_heavy_end(PP.getIdentifierInfo("heavy_end"))
+  { }
+
 public:
-  void Init(const char* BS,
+  void Init(SourceLocation Loc,
+            const char* BS,
             const char* BE,
             const char* BP) {
+    FileLoc = Loc;
     BufferStart = BS;
     BufferEnd = BE;
     BufferPtr = BP;
@@ -62,6 +72,12 @@ private:
 
   char getAndAdvanceChar(const char *&Ptr) {
     return *Ptr++;
+  }
+
+  void FormRawIdentifier(Token &Result, const char *TokEnd) {
+    const char* StartPtr = BufferPtr;
+    FormTokenWithChars(Result, TokEnd, tok::raw_identifier);
+    Result.setRawIdentifierInfo(StartPtr);
   }
 
   // Copy/Pasted from Lexer

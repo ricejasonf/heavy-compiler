@@ -134,6 +134,7 @@ void HeavySchemeLexer::Lex(Token& Tok) {
     Kind = tok::r_paren;
     break;
   case ',':
+    // TODO handle quasiquotation token '@,'
     Kind = tok::comma;
     break;
   case '`':
@@ -155,40 +156,21 @@ void HeavySchemeLexer::LexIdentifier(Token& Tok, const char *CurPtr) {
   } while (isExtendedAlphabet(c));
 
   if (!isDelimiter(c)) {
-    LexUnknown(Tok, CurPtr);
-    return;
+    return LexUnknown(Tok, CurPtr);
   }
-  // TODO check for `heavy_end` as that is a very special and relevant token
 
-  // TODO Check for keywords
-  //      This might go in parser instead since
-  //      I don't see us making a TokenKind for each
-  //      of these
-  // =>
-  // and
-  // begin
-  // case
-  // cond
-  // define
-  // delay
-  // do
-  // else
-  // if
-  // lambda
-  // let
-  // let*
-  // letrec
-  // or
-  // quasiquote
-  // quote
-  // set!
-  // unquote
-  // unquote-splicing
-  //
-  // typename
-  // template
-  // constexpr
-  FormTokenWithChars(Tok, CurPtr, tok::identifier);
+  // Check for heavy_begin and heavy_end which are the only
+  // non-bindable syntactic keywords as they are really an
+  // extension to the host C++ syntax
+  StringRef IdStr(BufferPtr, CurPtr - BufferPtr);
+  IdentifierInfo* II = PP.getIdentifierInfo(IdStr);
+  if (II == Ident_heavy_begin) {
+    return FormTokenWithChars(Tok, CurPtr, tok::kw_heavy_begin)
+  } else if (II == Ident_heavy_end) {
+    return FormTokenWithChars(Tok, CurPtr, tok::kw_heavy_end)
+  } else {
+    return FormRawIdentifier(Tok, CurPtr);
+  }
 }
 
 void HeavySchemeLexer::LexNumberOrIdentifier(Token& Tok, const char *CurPtr) {
@@ -196,7 +178,7 @@ void HeavySchemeLexer::LexNumberOrIdentifier(Token& Tok, const char *CurPtr) {
   char c = getAndAdvanceChar(CurPtr);
   if (isDelimiter(c)) {
     // '+' | '-' are valid identifiers
-    return FormTokenWithChars(Tok, CurPtr, tok::identifier);
+    return FormRawIdentifier(Tok, CurPtr);
   }
   // Lex as a number
   LexNumber(Tok, OrigPtr);
@@ -209,7 +191,7 @@ void HeavySchemeLexer::LexNumberOrEllipsis(Token& Tok, const char *CurPtr) {
   char c3 = getAndAdvanceChar(CurPtr);
   if (c1 == '.' && c2 ==  '.' && isDelimiter(c3)) {
     // '...' is a valid identifier
-    return FormTokenWithChars(Tok, CurPtr, tok::identifier);
+    return FormRawIdentifier(Tok, CurPtr);
   }
   // Lex as a number
   LexNumber(Tok, OrigPtr);
@@ -237,8 +219,7 @@ void HeavySchemeLexer::LexSharpLiteral(Token& Tok, const char *CurPtr) {
   switch (c) {
   case '\\':
     SkipUntilDelimiter(CurPtr);
-    FormTokenWithChars(Tok, CurPtr, tok::char_constant);
-    return;
+    return FormTokenWithChars(Tok, CurPtr, tok::char_constant);
   case 't':
     Kind = tok::heavy_true;
     RequiresDelimiter = true;
@@ -328,7 +309,7 @@ void HeavySchemeLexer::ProcessWhitespace(Token& Tok, const char *&CurPtr) {
   }
 }
 
-// Copy/Pasted from Lexer
+// Copy/Pasted from Lexer (mostly)
 SourceLocation HeavySchemeLexer::getSourceLocation(const char *Loc,
                                                    unsigned TokLen) const {
   assert(Loc >= BufferStart && Loc <= BufferEnd &&
@@ -337,11 +318,5 @@ SourceLocation HeavySchemeLexer::getSourceLocation(const char *Loc,
   // In the normal case, we're just lexing from a simple file buffer, return
   // the file id from FileLoc with the offset specified.
   unsigned CharNo = Loc-BufferStart;
-  if (FileLoc.isFileID())
-    return FileLoc.getLocWithOffset(CharNo);
-
-  // Otherwise, this is the _Pragma lexer case, which pretends that all of the
-  // tokens are lexed from where the _Pragma was defined.
-  assert(PP && "This doesn't work on raw lexers");
-  return GetMappedTokenLoc(*PP, FileLoc, CharNo, TokLen);
-}
+  return FileLoc.getLocWithOffset(CharNo);
+r
