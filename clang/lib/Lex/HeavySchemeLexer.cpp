@@ -206,7 +206,7 @@ void HeavySchemeLexer::LexNumber(Token& Tok, const char *CurPtr) {
       LexUnknown(Tok, CurPtr);
     break;
   }
-  FormTokenWithChars(Tok, CurPtr, tok::numberic_constant);
+  FormTokenWithChars(Tok, CurPtr, tok::numeric_constant);
 }
 
 // These could be numbers, character constants, or other literals

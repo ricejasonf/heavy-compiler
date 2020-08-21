@@ -17,27 +17,52 @@
 #include "clang/Sema/Sema.h"
 
 namespace clang {
-  class ParserHeavyScheme {
-    Preprocessor& PP;
-    Sema& Actions;
-    DiagnosticsEngine& Diags;
-    Token Tok = {};
 
-    // TODO make a HeavySchemeEnvironment stack
+class ParserHeavyScheme {
+  Preprocessor& PP;
+  Sema& Actions;
+  DiagnosticsEngine& Diags;
+  Token Tok = {};
+  SourceLocation PrevTokLocation;
 
-  public:
-    ParserHeavyScheme(Preprocessor& P, Sema& S, DiagnosticsEngine& D)
-      : PP(P)
-      , Actions(S)
-      , Diags(D)
-    { }
+  // TODO make a HeavySchemeEnvironment stack
+  //      ... somewhere
 
-    // Parses until the terminator token (ie heavy_end).
-    // Expects the first token is the initiating token (ie heavy_begin)
-    // Returns true if there was an error
-    // Evaluation and everything will likely occur inside this function
-    bool Parse();
-  };
+  bool Finish(TokenKind Kind);
+
+  SourceLocation ConsumeToken() {
+    PrevTokLocation = Tok.getLocation();
+    PP.Lex(Tok);
+    return PrevTokLocation;
+  }
+
+  ValueResult ParseExpr();
+
+  ValueResult ParseCharConstant();
+  ValueResult ParseCppDecl();
+  ValueResult ParseList();
+  ValueResult ParseNumber();
+  ValueResult ParseString();
+  ValueResult ParseSymbol();
+  ValueResult ParseTypename();
+  ValueResult ParseVector();
+
+  ValueResult ParseDottedCdr();
+  ValueResult ParseSpecialEscapeSequence();
+public:
+  ParserHeavyScheme(Preprocessor& P, Sema& S, DiagnosticsEngine& D)
+    : PP(P)
+    , Actions(S)
+    , Diags(D)
+  { }
+
+  // Parses until the terminator token (ie heavy_end).
+  // Expects the first token is the initiating token (ie heavy_begin)
+  // Returns true if there was an error
+  // Evaluation and everything will likely occur inside this function
+  bool Parse();
+};
+
 }  // end namespace clang
 
 #endif

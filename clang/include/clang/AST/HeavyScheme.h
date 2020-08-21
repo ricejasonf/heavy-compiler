@@ -18,6 +18,7 @@
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Sema/Ownership.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -32,8 +33,11 @@
 #include <utility>
 
 namespace clang::heavy_scheme {
+  class Context;
+
   // Value - A result of an evaluation
   class Value {
+    friend class Context;
     enum Kind {
       Boolean,
       Char,
@@ -43,19 +47,23 @@ namespace clang::heavy_scheme {
       Float,
       Pair,
       Procedure,
-      StringConst,
-      StringMutable,
+      String,
       Symbol,
       Typename, // C++ type
       Vector
     };
 
     Kind ValueKind;
+    bool IsMutable = false;
 
-  protected
+  protected:
     Value (Kind VK)
       : ValueKind(VK)
     { }
+  public:
+    bool isMutable() const {
+      return IsMutable;
+    }
   };
 
   class Empty : Value {
@@ -127,31 +135,14 @@ namespace clang::heavy_scheme {
   };
 
   class String {
-    static bool classof(const Value* V) {
-      return V == Value::StringConst ||
-             V == Value::StringMutable;
-    }
-  };
-
-  class StringConst : String {
     StringRef Val;
-    static bool classof(const Value* V) { return V == Value::StringConst; }
+    static bool classof(const Value* V) { return V == Value::String; }
   public:
-    StringConst(StringRef V)
-      : Value(Value::StringConst)
+    String(StringRef V)
+      : Value(Value::String)
       , Val(V)
     { }
   };
-
-  class StringMutable : String {
-    std::string Val;
-    static bool classof(const Value* V) { return V == Value::StringMutable; }
-  public:
-    StringMutable(std::string V)
-      : Value(Value::StringMutable)
-      , Val(V)
-    { }
-  }
 
   class Pair : Value {
     Value* Car;
@@ -222,15 +213,30 @@ namespace clang::heavy_scheme {
     Integer* CreateInteger(int V) { return new (Ctx) Integer(V); }
     Float* CreateFloat(float V) { return new (Ctx) Float(V); }
     Pair* CreatePair(Value* V1, Value* V2) { return new (Ctx) Pair(V1, V2); }
-    Procedure* Procedure(Value* Pair) { return new (Ctx) Procedure(Pair); }
-    StringConst* CreateStringConst(StringRef) {
-      return new (Ctx) StringConst(V);
+    Procedure* CreateProcedure(Value* Pair) {
+      return new (Ctx) Procedure(Pair);
     }
-    StringMutable* CreateStringMutable(std::string);
-    Symbol* CreateSymbol(IdentifierInfo*) { return new (Ctx) Symbol(II); }
-    Typename* CreateTypename(QualType* V)  { return new (Ctx) Typename(V); }
-    VectorConst* CreateVectorConst(ArrayRef<Value*> Vs);
+    String* CreateString(StringRef V) { return new (Ctx) String(V); }
+    Symbol* CreateSymbol(IdentifierInfo* II) { return new (Ctx) Symbol(II); }
+    Typename* CreateTypename(QualType* V) { return new (Ctx) Typename(V); }
+    Vector* CreateVector(ArrayRef<Value*> Vs) { return new (Ctx) Vector(V); }
+
+    String* CreateMutableString(StringRef V) {
+      String* S = CreateString(V);
+      New.IsMutable = true;
+      return S;
+    }
+
+    Vector* CreateMutableVector(ArrayRef<Value*> Vs) {
+      Vector* New = CreateVector(Vs);
+      New.IsMutable = true;
+      return New;
+    }
   };
+
+  using ValueResult = ActionResult<Value *>;
+
+  inline ValueError() { return ValueResult(true); }
 } // namespace clang::heavy_scheme
 
 #endif // LLVM_CLANG_AST_HEAVY_SCHEME_H
