@@ -15,6 +15,7 @@
 
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Sema.h"
+#include <string>
 
 namespace clang {
 
@@ -24,6 +25,7 @@ class ParserHeavyScheme {
   DiagnosticsEngine& Diags;
   Token Tok = {};
   SourceLocation PrevTokLocation;
+  std::string LiteralResult = {}
 
   // TODO make a HeavySchemeEnvironment stack
   //      ... somewhere

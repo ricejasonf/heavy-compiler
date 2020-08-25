@@ -210,13 +210,13 @@ namespace clang::heavy_scheme {
     Char* CreateChar(char V) { return new (Ctx) Char(V); }
     CppDecl* CreateCppDecl(Decl* V) { return new (Ctx) Cppdecl(V); }
     Empty* CreateEmpty() { return new (Ctx) Empty(); }
-    Integer* CreateInteger(int V) { return new (Ctx) Integer(V); }
-    Float* CreateFloat(float V) { return new (Ctx) Float(V); }
+    Integer* CreateInteger(llvm::APInt V);
+    Float* CreateFloat(llvm::APFloat V);
     Pair* CreatePair(Value* V1, Value* V2) { return new (Ctx) Pair(V1, V2); }
     Procedure* CreateProcedure(Value* Pair) {
       return new (Ctx) Procedure(Pair);
     }
-    String* CreateString(StringRef V) { return new (Ctx) String(V); }
+    String* CreateString(StringRef V);
     Symbol* CreateSymbol(IdentifierInfo* II) { return new (Ctx) Symbol(II); }
     Typename* CreateTypename(QualType* V) { return new (Ctx) Typename(V); }
     Vector* CreateVector(ArrayRef<Value*> Vs) { return new (Ctx) Vector(V); }
