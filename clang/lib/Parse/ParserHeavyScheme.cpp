@@ -64,6 +64,57 @@ namespace {
     ++CurPtr;
     return parseNumberPrefix(CurPtr, IsExact, Radix, Result);
   }
+
+  bool fitsInBits(int NumDigits, BitWidth, Radix) {
+    switch (Radix) {
+    case 2:
+      return NumDigits <= BitWidth;
+    case 8:
+      return NumDigits <= BitWidth / 3; // Digits are groups of 3 bits.
+    case 10:
+      return NumDigits <= floor(log10(pow(2, bit_width))); // floor(log10(2^64))
+    case 16:
+      return NumDigits <= BitWidth / 4; // Digits are groups of 4 bits.
+    default:
+      llvm_unreachable("impossible Radix");
+    }
+  }
+
+  llvm::Optional<llvm::APInt>
+  tryParseInteger(StringRef TokenSpan, int BitWidth, int Radix) {
+    // largely inspired by NumericLiteralParser::GetIntegerValue
+    llvm::APInt RadixVal(BitWidth, Radix);
+    llvm::APInt DigitVal(BitWidth, 0);
+    llvm::APInt Val(BitWidth, 0);
+    llvm::APInt OldVal = Val;
+    bool Negate = false;
+    bool OverflowOccurred = false;
+
+    // may start with sign
+    if (TokenSpan[0] == '+' || TokenSpan[0] == '-') {
+      Negate = true;
+      TokenSpan = TokenSpan.drop_front(1);
+    }
+    for (char c : TokenSpan) {
+      unsigned Digit = llvm::hexDigitValue(c);
+      if (Digit >= Radix)
+        return {};
+      DigitVal = Digit;
+      OldVal = Val;
+
+      Val *= RadixVal;
+      // The inverse operation should be the same or
+      // it overflowed
+      OverflowOccurred |= Val.udiv(RadixVal) != OldVal;
+      Val += DigitVal;
+      OverflowOccurred |= Val.ult(DigitVal);
+    }
+    if (OverflowOccurred)
+      return {};
+    if (Negate) 
+      Val.negate();
+    return Val;
+  }
 }
 
 bool ParserHeavyScheme::Parse() {
@@ -78,7 +129,8 @@ bool ParserHeavyScheme::Parse() {
     case tok::kw_heavy_end:
       return Finish(Tok.getKind());
     default:
-      // uhhh create ast node I guess?
+      // Parse top level expr and eval?
+      ParseExpr();
     }
   }
 
@@ -119,6 +171,10 @@ ValueResult ParserHeavyScheme::ParseExpr() {
     return Context::CreateBoolean(false);
   case tok::string_literal:
     return ParseString();
+  default:
+    // unexpected token yeah?
+    // TODO emit error
+  }
 }
 
 ValueResult ParserHeavyScheme::ParseListStart() {
@@ -203,7 +259,9 @@ ValueResult ParserHeavyScheme::ParseCppDecl(){
 ValueResult ParserHeavyScheme::ParseNumber() {
   char const* Current = Tok.getLiteralData();
   char const* End = Current + (Tok.getLength() - 2);
-  int BitWidth = ????Ctx.getTargetInfo().getIntSize();
+  int BitWidth = Context.getASTContext()
+                        .getTargetInfo()
+                        .getIntSize();
   llvm::Optional<bool> IsExactOpt;
   llvm::Optional<int> RadixOpt;
   llvm::Optional<llvm::APInt> IntOpt;
@@ -216,26 +274,25 @@ ValueResult ParserHeavyScheme::ParseNumber() {
   int Radix = Radix.getValueOr(10);
 
   StringRef TokenSpan(Current, End);
-  if (IsValidInteger(TokenSpan, Radix)) {
-    IntOpt = llvm::APInt(BitWidth, TokenSpan, Radix);
-  }
+  IntOpt = tryParseInteger(TokenSpan, BitWidth, Radix);
+
   if (IsExact && IntOpt.hasValue()) {
     return Context.CreateInteger(IntOpt.getValue());
   }
 
-  llvm::APFloat Float();
+  llvm::APFloat FloatVal();
   if (IntOpt.hasValue()) {
     llvm::APInt Int = IntOpt.getValue()
-    Float.convertFromAPInt(Int, Int.isSigned(),
+    FloatVal.convertFromAPInt(Int, Int.isSigned(),
                            llvm::APFloat::rmNearestTiesToEven);
   } else {
-    auto Result = Float.convertFromString(
+    auto Result = FloatVal.convertFromString(
         TokenSpan, llvm::APFloat::rmNearestTiesToEven);
     if (!Result) {
       llvm_unreachable("TODO invalid numerical syntax");
     }
   }
-  return Context.CreateFloat(Float
+  return Context.CreateFloat(FloatVal);
 }
 
 ValueResult ParserHeavyScheme::ParseString(){

@@ -206,6 +206,9 @@ namespace clang::heavy_scheme {
   class Context {
     ASTContext& Ctx;
 
+  public:
+    ASTContext& getASTContext() { return Ctx; }
+
     Boolean* CreateBoolean(bool V) { return new (Ctx) Boolean(V); }
     Char* CreateChar(char V) { return new (Ctx) Char(V); }
     CppDecl* CreateCppDecl(Decl* V) { return new (Ctx) Cppdecl(V); }
