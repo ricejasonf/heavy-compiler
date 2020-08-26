@@ -244,15 +244,7 @@ ValueResult ParserHeavyScheme::ParseDottedCdr() {
   }
 }
 
-ValueResult ParserHeavyScheme::ParseBoolean() {
-  llvm_unreachable("TODO");
-}
-
 ValueResult ParserHeavyScheme::ParseCharConstant(){
-  llvm_unreachable("TODO");
-}
-
-ValueResult ParserHeavyScheme::ParseCppDecl(){
   llvm_unreachable("TODO");
 }
 
@@ -295,12 +287,11 @@ ValueResult ParserHeavyScheme::ParseNumber() {
   return Context.CreateFloat(FloatVal);
 }
 
-ValueResult ParserHeavyScheme::ParseString(){
+ValueResult ParserHeavyScheme::ParseString() {
   // the literal must include the ""
   assert(Tok.getLength() > 2);
   char const* Current = Tok.getLiteralData() + 1;
   char const* End = Current + (Tok.getLength() - 2);
-  StringRef TokenSpan(Tok.getLiteralData() + 1, Tok.getLength() - 2);
   LiteralResult.clear();
   while (Current < End) {
     StringRef TokenSpan(Current, End);
@@ -332,11 +323,15 @@ ValueResult ParserHeavyScheme::ParseString(){
   return Context.CreateString(StringRef(LiteralResult));
 }
 
+ValueResult ParserHeavyScheme::ParseVector(){
+  llvm_unreachable("TODO");
+}
+
 ValueResult ParserHeavyScheme::ParseTypename(){
   llvm_unreachable("TODO");
 }
 
-ValueResult ParserHeavyScheme::ParseVector(){
+ValueResult ParserHeavyScheme::ParseCppDecl(){
   llvm_unreachable("TODO");
 }
 
