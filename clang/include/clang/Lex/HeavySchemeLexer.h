@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//  This file defines the Lexer interface for the Heavy Scheme DSL.
+//  This file defines the Lexer interface for the HeavyScheme DSL.
 //
 //===----------------------------------------------------------------------===//
 

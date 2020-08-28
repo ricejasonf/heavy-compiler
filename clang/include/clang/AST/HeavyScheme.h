@@ -1,4 +1,4 @@
-//===- Decl.h - Classes for representing declarations -----------*- C++ -*-===//
+//===- HeavyScheme.h - Classes for representing declarations ----*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//  This file defines the Decl subclasses.
+//  This file defines HeavyScheme decalarations for values and evaluation.
 //
 //===----------------------------------------------------------------------===//
 
