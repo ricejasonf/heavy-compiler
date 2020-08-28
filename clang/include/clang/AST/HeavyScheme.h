@@ -34,6 +34,14 @@
 
 namespace clang::heavy_scheme {
 class Context;
+class Value;
+
+// The resulting Value* of the eval function
+// may be invalidated on a call to garbage
+// collection if it is not bound to a variable
+// at top level scope
+Value* eval(Context&, Value*);
+void write(raw_ostream&, Value*);
 
 // Value - A result of an evaluation
 class Value {
@@ -65,6 +73,7 @@ protected:
 public:
   bool isMutable() const { return IsMutable; }
   Kind getKind() const { return ValueKind; }
+  bool is(Kind K) const { return getKind() == K; }
 };
 
 class Empty : Value {
@@ -76,18 +85,21 @@ public:
   { }
 };
 
-class Boolean : Value {
+class Boolean : public Value {
   bool Val;
-  static bool classof(const Value* V) { return V == Value::Boolean; }
 public:
   Boolean(bool V)
     : Value(Value::Boolean)
     , Val(V)
   { }
+
+  auto getVal() { return Val; }
+  static bool classof(const Value* V) { return V == Value::Boolean; }
 };
 
 // Base class for Numeric types
-class Number : Value {
+class Number : public Value {
+public:
   // maybe arithmetic functions go here?
   static bool classof(const Value* V) {
     return V == Value::Integer ||
@@ -95,61 +107,75 @@ class Number : Value {
   }
 };
 
-class Integer : Number {
-  int Val;
-  static bool classof(const Value* V) { return V == Value::Integer; }
+class Integer : public Number {
+  llvm::APInt Val;
 public:
   Integer(int V)
     : Value(Value::Integer)
     , Val(V)
   { }
+
+  auto getVal() { return Val; }
+  static bool classof(const Value* V) { return V == Value::Integer; }
 };
 
-class Float : Number {
-  float Val;
-  static bool classof(const Value* V) { return V == Value::Float; }
+class Float : public Number {
+  llvm::APFloat Val;
+
 public:
   Float(float V)
     : Value(Value::Float)
     , Val(V)
   { }
+
+  auto getVal() { return Val; }
+  static bool classof(const Value* V) { return V == Value::Float; }
 };
 
-class Char : Value {
-  char Val;
-  static bool classof(const Value* V) { return V == Value::Char; }
+class Char : public Value {
+  uint32_t Val;
+
 public:
   Char(char V)
     : Value(Value::Char)
     , Val(V)
   { }
+
+  auto getVal() { return Val; }
+  static bool classof(const Value* V) { return V == Value::Char; }
 };
 
-class Symbol : Value {
+class Symbol : public Value {
   IdentifierInfo* Name;
-  static bool classof(const Value* V) { return V == Value::Symbol; }
+
 public:
   Symbol(IdentifierInfo* II)
     : Value(Value::Symbol)
     , Name(II)
   { }
+
+  IdentifierInfo* getIdentifier() { return Name; }
+  static bool classof(const Value* V) { return V == Value::Symbol; }
 };
 
-class String {
+class String : public Value {
+public:
   StringRef Val;
   static bool classof(const Value* V) { return V == Value::String; }
-public:
+
   String(StringRef V)
     : Value(Value::String)
     , Val(V)
   { }
 };
 
-class Pair : Value {
+class Pair : public Value {
+public:
   Value* Car;
   Value* Cdr;
+
   static bool classof(const Value* V) { return V == Value::Pair; }
-public:
+
   Pair(Value* First, Value* Second)
     : Value(Value::Pair)
     , Car(First)
@@ -157,31 +183,37 @@ public:
   { }
 };
 
-class Procedure : Value {
+class Procedure : public Value {
+  Pair* Val;
+
+public:
   // Just store the external representation I think
-  // or maybe a pointer to code in an interpreter
   // (name . (formals . (body . ()))
   // name    (car x)
   // formals (cadr x)
   // body    (caadr x)
   // ... I think that is right
-  Pair Val;
-  static bool classof(const Value* V) { return V == Value::Procedure; }
-public:
+
   Procedure(Pair* V)
     : Value(Value::Procedure)
     , Val(V)
   { }
+
+  Pair* getVal() { return Val; }
+  static bool classof(const Value* V) { return V == Value::Procedure; }
 };
 
-class Vector : Value {
+class Vector : public Value {
   ArrayRef<Value*> Vals;
-  static bool classof(const Value* V) { return V == Value::Vector; }
+
 public:
   Vector(ArrayRef<Value*> V)
     : Value(Value::Vector)
     , Val(V)
   { }
+
+  ArrayRef<Value*> getInternal() { return Vals; }
+  static bool classof(const Value* V) { return V == Value::Vector; }
 };
 
 class CppDecl : Value {
@@ -205,25 +237,28 @@ public:
 };
 
 class Context {
-  ASTContext& Ctx;
+  ASTContext& ASTCtx;
 
 public:
-  ASTContext& getASTContext() { return Ctx; }
+  // TODO Eventually we want to hide how we
+  //      allocate memory so we can add garbage
+  //      collection.
+  ASTContext& getASTContext() { return ASTCtx; }
 
-  Boolean* CreateBoolean(bool V) { return new (Ctx) Boolean(V); }
-  Char* CreateChar(char V) { return new (Ctx) Char(V); }
-  CppDecl* CreateCppDecl(Decl* V) { return new (Ctx) Cppdecl(V); }
-  Empty* CreateEmpty() { return new (Ctx) Empty(); }
+  Boolean* CreateBoolean(bool V) { return new (ASTCtx) Boolean(V); }
+  Char* CreateChar(char V) { return new (ASTCtx) Char(V); }
+  CppDecl* CreateCppDecl(Decl* V) { return new (ASTCtx) Cppdecl(V); }
+  Empty* CreateEmpty() { return new (ASTCtx) Empty(); }
   Integer* CreateInteger(llvm::APInt V);
   Float* CreateFloat(llvm::APFloat V);
-  Pair* CreatePair(Value* V1, Value* V2) { return new (Ctx) Pair(V1, V2); }
+  Pair* CreatePair(Value* V1, Value* V2) { return new (ASTCtx) Pair(V1, V2); }
   Procedure* CreateProcedure(Value* Pair) {
-    return new (Ctx) Procedure(Pair);
+    return new (ASTCtx) Procedure(Pair);
   }
   String* CreateString(StringRef V);
-  Symbol* CreateSymbol(IdentifierInfo* II) { return new (Ctx) Symbol(II); }
-  Typename* CreateTypename(QualType* V) { return new (Ctx) Typename(V); }
-  Vector* CreateVector(ArrayRef<Value*> Vs) { return new (Ctx) Vector(V); }
+  Symbol* CreateSymbol(IdentifierInfo* II) { return new (ASTCtx) Symbol(II); }
+  Typename* CreateTypename(QualType* V) { return new (ASTCtx) Typename(V); }
+  Vector* CreateVector(ArrayRef<Value*> Vs) { return new (ASTCtx) Vector(V); }
 
   String* CreateMutableString(StringRef V) {
     String* S = CreateString(V);
@@ -241,6 +276,7 @@ public:
 using ValueResult = ActionResult<Value *>;
 
 inline ValueError() { return ValueResult(true); }
+inline ValueEmpty() { return ValueResult(false); }
 
 // ValueVisitor
 // This will be the base class for evaluation and printing
@@ -255,24 +291,7 @@ class ValueVisitor {
   Derived& getDerived() { return static_cast<Derived>(*this); }
   Derived const& getDerived() const { return static_cast<Derived>(*this); }
 
-public:
-  RetTy Visit(Value* V) {
-    switch (V->getKind()) {
-    case Value::Boolean:    DISPATCH(Boolean);
-    case Value::Char:       DISPATCH(Char);
-    case Value::CppDecl:    DISPATCH(CppDecl);
-    case Value::Empty:      DISPATCH(Empty);
-    case Value::Integer:    DISPATCH(Integer);
-    case Value::Float:      DISPATCH(Float);
-    case Value::Pair:       DISPATCH(Pair);
-    case Value::Procedure:  DISPATCH(Procedure);
-    case Value::String:     DISPATCH(String);
-    case Value::Symbol:     DISPATCH(Symbol);
-    case Value::Typename:   DISPATCH(Typename);
-    case Value::Vector:     DISPATCH(Vector);
-    }
-  }
-
+protected:
   // Derived must implement VisitValue OR all of the
   // concrete visitors
   template <typename T>
@@ -292,6 +311,24 @@ public:
   VISIT_FN(Symbol)
   VISIT_FN(Typename)
   VISIT_FN(Vector)
+
+public:
+  RetTy Visit(Value* V) {
+    switch (V->getKind()) {
+    case Value::Boolean:    DISPATCH(Boolean);
+    case Value::Char:       DISPATCH(Char);
+    case Value::CppDecl:    DISPATCH(CppDecl);
+    case Value::Empty:      DISPATCH(Empty);
+    case Value::Integer:    DISPATCH(Integer);
+    case Value::Float:      DISPATCH(Float);
+    case Value::Pair:       DISPATCH(Pair);
+    case Value::Procedure:  DISPATCH(Procedure);
+    case Value::String:     DISPATCH(String);
+    case Value::Symbol:     DISPATCH(Symbol);
+    case Value::Typename:   DISPATCH(Typename);
+    case Value::Vector:     DISPATCH(Vector);
+    }
+  }
 
 #undef DISPATCH
 #undef VISIT_FN

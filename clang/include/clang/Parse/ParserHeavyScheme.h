@@ -27,14 +27,9 @@ class ParserHeavyScheme {
   SourceLocation PrevTokLocation;
   std::string LiteralResult = {}
 
-  // TODO make a HeavySchemeEnvironment stack
-  //      ... somewhere
-
-  bool Finish(TokenKind Kind);
-
   SourceLocation ConsumeToken() {
     PrevTokLocation = Tok.getLocation();
-    PP.Lex(Tok);
+    PP.LexHeavyScheme(Tok);
     return PrevTokLocation;
   }
 
@@ -58,10 +53,10 @@ public:
     , Diags(D)
   { }
 
-  // Parses until the terminator token (ie heavy_end).
-  // Expects the first token is the initiating token (ie heavy_begin)
+  // Parses until the terminator token (ie heavy_end)
+  // and evaluates top level expressions.
+  // Expects that the first token is heavy_begin
   // Returns true if there was an error
-  // Evaluation and everything will likely occur inside this function
   bool Parse();
 };
 

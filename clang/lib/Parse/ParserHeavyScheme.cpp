@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/AST/ASTContext.h"
+#include "clang/AST/HeavyScheme.h"
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/ParsedTemplate.h"
@@ -118,42 +118,28 @@ namespace {
 }
 
 bool ParserHeavyScheme::Parse() {
-  assert(Tok == tok::kw_heavy_begin);
   PP.InitHeavySchemeLexer();
+  ConsumeToken();
+  assert(Tok == tok::kw_heavy_begin, "Expected heavy_begin");
 
+  ValueResult Result;
   while (true) {
-    PP.LexHeavyScheme(Tok);
-    switch (Tok.getKind()) {
-    case tok::unknown:
-    case tok::eof:
-    case tok::kw_heavy_end:
-      return Finish(Tok.getKind());
-    default:
-      // Parse top level expr and eval?
-      ParseExpr();
+    Result = ParseExpr(/*IsTopLevel=*/true);
+    if (Result.isUsable()) {
+      write(llvm::errs(), eval(Ctx, Result.get()));
     }
-  }
+    else {
+      break;
+    }
+  };
 
-  // Return control to Parser
-  return Finish();
-}
-
-bool Parser::Finish(TokenKind Kind) {
-  // Update Preprocessor with
-  // the current file position
+  // Return control to C++ Parser
   PP.FinishHeavySchemeLexer();
-
-  if (Kind != tok::kw_heavy_end) {
-    // TODO emit diagnostic for unexpected token
-    return true;
-  }
-
-  // TODO check that parens were closed properly
-  bool Result = false;
-  return Result;
+  return Result.isInvalid()
 }
 
-ValueResult ParserHeavyScheme::ParseExpr() {
+ValueResult ParserHeavyScheme::ParseExpr(bool IsTopLevel = false) {
+  ConsumeToken();
   switch (Tok.getKind()) {
   case tok::l_paren:
     return ParseListStart();
@@ -171,9 +157,14 @@ ValueResult ParserHeavyScheme::ParseExpr() {
     return Context::CreateBoolean(false);
   case tok::string_literal:
     return ParseString();
+  case tok::kw_heavy_end:
+    if (IsTopLevel) {
+      return ValueEmpty();
+    }
+    LLVM_FALLTHROUGH;
   default:
-    // unexpected token yeah?
-    // TODO emit error
+    // TODO emit error unexpected token
+    return ValueError();
   }
 }
 
@@ -260,6 +251,7 @@ ValueResult ParserHeavyScheme::ParseNumber() {
 
   if (parseNumberPrefix(Current, IsExactOpt, RadixOpt)) {
     llvm_unreachable("TODO diagnose invalid number prefix");
+    return ValueError();
   }
 
   bool IsExact = IsExactOpt.getValueOr(true);
@@ -282,6 +274,7 @@ ValueResult ParserHeavyScheme::ParseNumber() {
         TokenSpan, llvm::APFloat::rmNearestTiesToEven);
     if (!Result) {
       llvm_unreachable("TODO invalid numerical syntax");
+      return ValueError();
     }
   }
   return Context.CreateFloat(FloatVal);
@@ -325,13 +318,16 @@ ValueResult ParserHeavyScheme::ParseString() {
 
 ValueResult ParserHeavyScheme::ParseVector(){
   llvm_unreachable("TODO");
+  return ValueError();
 }
 
 ValueResult ParserHeavyScheme::ParseTypename(){
   llvm_unreachable("TODO");
+  return ValueError();
 }
 
 ValueResult ParserHeavyScheme::ParseCppDecl(){
   llvm_unreachable("TODO");
+  return ValueError();
 }
 
