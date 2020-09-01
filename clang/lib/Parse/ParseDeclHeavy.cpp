@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Parse/Parser.h"
+#include "clang/Parse/HeavySchemeParser.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
@@ -24,6 +25,11 @@
 #include "llvm/ADT/SmallString.h"
 
 using namespace clang;
+
+bool Parser::ParseHeavyScheme() {
+  HeavySchemeParser P(PP, *this);
+  return P.Parse();
+}
 
 Decl*
 Parser::ParseHeavyMacroDeclaration(DeclaratorContext Context) {

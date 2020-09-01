@@ -26,19 +26,15 @@ class SourceManager;
 
 class HeavySchemeLexer {
   friend class Preprocessor;
+  Preprocessor& PP;
   IdentifierInfo* Ident_heavy_begin = nullptr;
   IdentifierInfo* Ident_heavy_end = nullptr;
   SourceLocation FileLoc;
   const char* BufferStart = nullptr;
   const char* BufferEnd = nullptr;
   const char* BufferPtr = nullptr;
-  bool IsAtStartOfLine = false;
-  bool IsWithinAngleBracketList = false;
 
-  HeavySchemeLexer(Preprocessor &PP) 
-    , Ident_heavy_begin(PP.getIdentifierInfo("heavy_begin"))
-    , Ident_heavy_end(PP.getIdentifierInfo("heavy_end"))
-  { }
+  HeavySchemeLexer(Preprocessor& PP);
 
 public:
   void Init(SourceLocation Loc,
@@ -60,12 +56,12 @@ public:
   
   void Lex(Token& Tok);
 private:
-  void Lex(Token& Tok);
   void LexIdentifier(Token& Tok, const char *CurPtr);
   void LexNumberOrIdentifier(Token& Tok, const char *CurPtr);
   void LexNumberOrEllipsis(Token& Tok, const char *CurPtr);
   void LexNumber(Token& Tok, const char *CurPtr);
   void LexSharpLiteral(Token& Tok, const char *CurPtr);
+  void LexStringLiteral(Token& Tok, const char *CurPtr);
   void LexUnknown(Token& Tok, const char *CurPtr);
   void SkipUntilDelimiter(const char *CurPtr);
   void ProcessWhitespace(Token& Tok, const char *&CurPtr);
@@ -77,7 +73,7 @@ private:
   void FormRawIdentifier(Token &Result, const char *TokEnd) {
     const char* StartPtr = BufferPtr;
     FormTokenWithChars(Result, TokEnd, tok::raw_identifier);
-    Result.setRawIdentifierInfo(StartPtr);
+    Result.setRawIdentifierData(StartPtr);
   }
 
   // Copy/Pasted from Lexer

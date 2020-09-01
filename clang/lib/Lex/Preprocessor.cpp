@@ -38,6 +38,7 @@
 #include "clang/Lex/CodeCompletionHandler.h"
 #include "clang/Lex/ExternalPreprocessorSource.h"
 #include "clang/Lex/HeaderSearch.h"
+#include "clang/Lex/HeavySchemeLexer.h"
 #include "clang/Lex/LexDiagnostic.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/LiteralSupport.h"
@@ -1404,7 +1405,7 @@ void Preprocessor::createPreprocessingRecord() {
 }
 
 void Preprocessor::InitHeavySchemeLexer() {
-  if (!HeavyScheme) {
+  if (!TheHeavySchemeLexer) {
     TheHeavySchemeLexer = new HeavySchemeLexer(*this);
   }
   TheHeavySchemeLexer->Init(CurLexer.getFileLoc(),

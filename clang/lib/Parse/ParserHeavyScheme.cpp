@@ -12,7 +12,7 @@
 
 #include "clang/AST/HeavyScheme.h"
 #include "clang/Parse/ParseDiagnostic.h"
-#include "clang/Parse/RAIIObjectsForParser.h"
+#include "clang/Parse/Parser.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
 #include "llvm/Support/Path.h"
@@ -120,8 +120,9 @@ namespace {
 bool ParserHeavyScheme::Parse() {
   PP.InitHeavySchemeLexer();
   ConsumeToken();
-  assert(Tok == tok::kw_heavy_begin, "Expected heavy_begin");
+  assert(Tok == tok::kw_heavy_begin && "Expected heavy_begin");
 
+  heavy_scheme::Context Ctx(Actions.getASTContext());
   ValueResult Result;
   while (true) {
     Result = ParseExpr(/*IsTopLevel=*/true);

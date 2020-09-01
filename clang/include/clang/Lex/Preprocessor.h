@@ -71,6 +71,7 @@ class ExternalPreprocessorSource;
 class FileEntry;
 class FileManager;
 class HeaderSearch;
+class HeavySchemeLexer;
 class MacroArgs;
 class PragmaHandler;
 class PragmaNamespace;

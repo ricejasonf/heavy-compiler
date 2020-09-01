@@ -14,15 +14,15 @@
 #define LLVM_CLANG_PARSE_PARSER_HEAVY_SCHEME_H
 
 #include "clang/Lex/Preprocessor.h"
-#include "clang/Sema/Sema.h"
 #include <string>
 
 namespace clang {
 
+class Parser;
+
 class ParserHeavyScheme {
   Preprocessor& PP;
-  Sema& Actions;
-  DiagnosticsEngine& Diags;
+  Parser& CxxParser;
   Token Tok = {};
   SourceLocation PrevTokLocation;
   std::string LiteralResult = {}
@@ -47,10 +47,9 @@ class ParserHeavyScheme {
   ValueResult ParseDottedCdr();
   ValueResult ParseSpecialEscapeSequence();
 public:
-  ParserHeavyScheme(Preprocessor& P, Sema& S, DiagnosticsEngine& D)
-    : PP(P)
-    , Actions(S)
-    , Diags(D)
+  ParserHeavyScheme(Preprocessor& PP, Parser& P)
+    : PP(PP)
+    , Parser(P)
   { }
 
   // Parses until the terminator token (ie heavy_end)

@@ -20,6 +20,8 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Ownership.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/APInt.h"
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/Casting.h"
@@ -32,7 +34,7 @@
 #include <string>
 #include <utility>
 
-namespace clang::heavy_scheme {
+namespace clang { namespace heavy_scheme {
 class Context;
 class Value;
 
@@ -47,7 +49,7 @@ void write(raw_ostream&, Value*);
 class Value {
   friend class Context;
 public:
-  enum Kind {
+  enum class Kind {
     Boolean,
     Char,
     CppDecl, // C++ decl name
@@ -78,10 +80,10 @@ public:
 
 class Empty : Value {
   // uhhh nothing?
-  static bool classof(const Value* V) { return V == Value::Empty; }
+  static bool classof(Kind K) { return K == Kind::Empty; }
 public:
   Empty()
-    : Value(Value::Empty)
+    : Value(Kind::Empty)
   { }
 };
 
@@ -89,34 +91,39 @@ class Boolean : public Value {
   bool Val;
 public:
   Boolean(bool V)
-    : Value(Value::Boolean)
+    : Value(Kind::Boolean)
     , Val(V)
   { }
 
   auto getVal() { return Val; }
-  static bool classof(const Value* V) { return V == Value::Boolean; }
+  static bool classof(Kind K) { return K == Kind::Boolean; }
 };
 
 // Base class for Numeric types
 class Number : public Value {
+protected:
+  Number(Kind K)
+    : Value(K)
+  { }
 public:
+
   // maybe arithmetic functions go here?
-  static bool classof(const Value* V) {
-    return V == Value::Integer ||
-           V == Value::Float;
+  static bool classof(Kind K) {
+    return K == Kind::Integer ||
+           K == Kind::Float;
   }
 };
 
 class Integer : public Number {
   llvm::APInt Val;
 public:
-  Integer(int V)
-    : Value(Value::Integer)
+  Integer(llvm::APInt V)
+    : Number(Kind::Integer)
     , Val(V)
   { }
 
   auto getVal() { return Val; }
-  static bool classof(const Value* V) { return V == Value::Integer; }
+  static bool classof(Kind K) { return K == Kind::Integer; }
 };
 
 class Float : public Number {
@@ -124,12 +131,12 @@ class Float : public Number {
 
 public:
   Float(float V)
-    : Value(Value::Float)
+    : Number(Kind::Float)
     , Val(V)
   { }
 
   auto getVal() { return Val; }
-  static bool classof(const Value* V) { return V == Value::Float; }
+  static bool classof(Kind K) { return K == Kind::Float; }
 };
 
 class Char : public Value {
@@ -137,12 +144,12 @@ class Char : public Value {
 
 public:
   Char(char V)
-    : Value(Value::Char)
+    : Value(Kind::Char)
     , Val(V)
   { }
 
   auto getVal() { return Val; }
-  static bool classof(const Value* V) { return V == Value::Char; }
+  static bool classof(Kind K) { return K == Kind::Char; }
 };
 
 class Symbol : public Value {
@@ -150,23 +157,24 @@ class Symbol : public Value {
 
 public:
   Symbol(IdentifierInfo* II)
-    : Value(Value::Symbol)
+    : Value(Kind::Symbol)
     , Name(II)
   { }
 
   IdentifierInfo* getIdentifier() { return Name; }
-  static bool classof(const Value* V) { return V == Value::Symbol; }
+  static bool classof(Kind K) { return K == Kind::Symbol; }
 };
 
 class String : public Value {
 public:
   StringRef Val;
-  static bool classof(const Value* V) { return V == Value::String; }
 
   String(StringRef V)
-    : Value(Value::String)
+    : Value(Kind::String)
     , Val(V)
   { }
+
+  static bool classof(Kind K) { return K == Kind::String; }
 };
 
 class Pair : public Value {
@@ -174,10 +182,10 @@ public:
   Value* Car;
   Value* Cdr;
 
-  static bool classof(const Value* V) { return V == Value::Pair; }
+  static bool classof(Kind K) { return K == Kind::Pair; }
 
   Pair(Value* First, Value* Second)
-    : Value(Value::Pair)
+    : Value(Kind::Pair)
     , Car(First)
     , Cdr(Second)
   { }
@@ -195,51 +203,56 @@ public:
   // ... I think that is right
 
   Procedure(Pair* V)
-    : Value(Value::Procedure)
+    : Value(Kind::Procedure)
     , Val(V)
   { }
 
   Pair* getVal() { return Val; }
-  static bool classof(const Value* V) { return V == Value::Procedure; }
+  static bool classof(Kind K) { return K == Kind::Procedure; }
 };
 
 class Vector : public Value {
   ArrayRef<Value*> Vals;
 
 public:
-  Vector(ArrayRef<Value*> V)
-    : Value(Value::Vector)
-    , Val(V)
+  Vector(ArrayRef<Value*> Vs)
+    : Value(Kind::Vector)
+    , Vals(Vs)
   { }
 
   ArrayRef<Value*> getInternal() { return Vals; }
-  static bool classof(const Value* V) { return V == Value::Vector; }
+  static bool classof(Kind K) { return K == Kind::Vector; }
 };
 
 class CppDecl : Value {
   Decl* Val;
-  static bool classof(const Value* V) { return V == Value::CppDecl; }
+  static bool classof(Kind K) { return K == Kind::CppDecl; }
 public:
   CppDecl(Decl* V)
-    : Value(Value::CppDecl)
+    : Value(Kind::CppDecl)
     , Val(V)
   { }
 };
 
 class Typename : Value {
   QualType Val;
-  static bool classof(const Value* V) { return V == Value::Typename; }
 public:
   Typename(QualType V)
-    : Value(Value::Typename)
+    : Value(Kind::Typename)
     , Val(V)
   { }
+
+  static bool classof(Kind K) { return K == Kind::Typename; }
 };
 
 class Context {
   ASTContext& ASTCtx;
 
 public:
+  Context(ASTContext& C)
+    : ASTCtx(C)
+  { }
+
   // TODO Eventually we want to hide how we
   //      allocate memory so we can add garbage
   //      collection.
@@ -247,7 +260,7 @@ public:
 
   Boolean* CreateBoolean(bool V) { return new (ASTCtx) Boolean(V); }
   Char* CreateChar(char V) { return new (ASTCtx) Char(V); }
-  CppDecl* CreateCppDecl(Decl* V) { return new (ASTCtx) Cppdecl(V); }
+  CppDecl* CreateCppDecl(Decl* V) { return new (ASTCtx) CppDecl(V); }
   Empty* CreateEmpty() { return new (ASTCtx) Empty(); }
   Integer* CreateInteger(llvm::APInt V);
   Float* CreateFloat(llvm::APFloat V);
@@ -315,18 +328,18 @@ protected:
 public:
   RetTy Visit(Value* V) {
     switch (V->getKind()) {
-    case Value::Boolean:    DISPATCH(Boolean);
-    case Value::Char:       DISPATCH(Char);
-    case Value::CppDecl:    DISPATCH(CppDecl);
-    case Value::Empty:      DISPATCH(Empty);
-    case Value::Integer:    DISPATCH(Integer);
-    case Value::Float:      DISPATCH(Float);
-    case Value::Pair:       DISPATCH(Pair);
-    case Value::Procedure:  DISPATCH(Procedure);
-    case Value::String:     DISPATCH(String);
-    case Value::Symbol:     DISPATCH(Symbol);
-    case Value::Typename:   DISPATCH(Typename);
-    case Value::Vector:     DISPATCH(Vector);
+    case Value::Kind::Boolean:    DISPATCH(Boolean);
+    case Value::Kind::Char:       DISPATCH(Char);
+    case Value::Kind::CppDecl:    DISPATCH(CppDecl);
+    case Value::Kind::Empty:      DISPATCH(Empty);
+    case Value::Kind::Integer:    DISPATCH(Integer);
+    case Value::Kind::Float:      DISPATCH(Float);
+    case Value::Kind::Pair:       DISPATCH(Pair);
+    case Value::Kind::Procedure:  DISPATCH(Procedure);
+    case Value::Kind::String:     DISPATCH(String);
+    case Value::Kind::Symbol:     DISPATCH(Symbol);
+    case Value::Kind::Typename:   DISPATCH(Typename);
+    case Value::Kind::Vector:     DISPATCH(Vector);
     }
   }
 
@@ -334,6 +347,6 @@ public:
 #undef VISIT_FN
 };
 
-} // namespace clang::heavy_scheme
+}} // namespace clang::heavy_scheme
 
 #endif // LLVM_CLANG_AST_HEAVY_SCHEME_H

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Lex/Lexer.h"
+#include "clang/Lex/HeavySchemeLexer.h"
 #include "UnicodeCharSets.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/IdentifierTable.h"
@@ -52,7 +53,7 @@ using namespace clang;
 namespace {
   bool isExtendedAlphabet(char c) {
     // TODO
-    // We could make a table similar to clang::char_info::InfoTable
+    // We could make a table similar to clang::charinfo::InfoTable
     // for more efficient processing here and possibly elsewhere.
     switch(c) {
     case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G':
@@ -73,7 +74,7 @@ namespace {
 
   bool isDelimiter(char c) {
     // TODO
-    // We could make a table similar to clang::char_info::InfoTable
+    // We could make a table similar to clang::charinfo::InfoTable
     // for more efficient processing here and possibly elsewhere.
     switch(c) {
     case 0:
@@ -91,6 +92,12 @@ namespace {
     return false;
   }
 }
+
+HeavySchemeLexer::HeavySchemeLexer(Preprocessor& PP)
+  : PP(PP)
+  , Ident_heavy_begin(PP.getIdentifierInfo("heavy_begin"))
+  , Ident_heavy_end(PP.getIdentifierInfo("heavy_end"))
+{ }
 
 void HeavySchemeLexer::Lex(Token& Tok) {
   const char* CurPtr = BufferPtr;
@@ -124,7 +131,7 @@ void HeavySchemeLexer::Lex(Token& Tok) {
   case '5': case '6': case '7': case '8': case '9':
     return LexNumber(Tok, CurPtr);
   case '#':
-    return LexSharp(Tok, CurPtr);
+    return LexSharpLiteral(Tok, CurPtr);
   case '"':
     return LexStringLiteral(Tok, CurPtr);
   case '(':
@@ -165,9 +172,9 @@ void HeavySchemeLexer::LexIdentifier(Token& Tok, const char *CurPtr) {
   StringRef IdStr(BufferPtr, CurPtr - BufferPtr);
   IdentifierInfo* II = PP.getIdentifierInfo(IdStr);
   if (II == Ident_heavy_begin) {
-    return FormTokenWithChars(Tok, CurPtr, tok::kw_heavy_begin)
+    return FormTokenWithChars(Tok, CurPtr, tok::kw_heavy_begin);
   } else if (II == Ident_heavy_end) {
-    return FormTokenWithChars(Tok, CurPtr, tok::kw_heavy_end)
+    return FormTokenWithChars(Tok, CurPtr, tok::kw_heavy_end);
   } else {
     return FormRawIdentifier(Tok, CurPtr);
   }
@@ -200,7 +207,7 @@ void HeavySchemeLexer::LexNumberOrEllipsis(Token& Tok, const char *CurPtr) {
 void HeavySchemeLexer::LexNumber(Token& Tok, const char *CurPtr) {
   while (true) {
     char c = getAndAdvanceChar(CurPtr);
-    if (char_info::isDigit(c) || c == '.')
+    if (isDigit(c) || c == '.')
       continue;
     if (!isDelimiter(c))
       LexUnknown(Tok, CurPtr);
@@ -216,6 +223,7 @@ void HeavySchemeLexer::LexSharpLiteral(Token& Tok, const char *CurPtr) {
   // If we expect the token to end after
   // `c` then we set RequiresDelimiter
   bool RequiresDelimiter = false;
+  tok::TokenKind Kind;
   switch (c) {
   case '\\':
     SkipUntilDelimiter(CurPtr);
@@ -245,7 +253,7 @@ void HeavySchemeLexer::LexSharpLiteral(Token& Tok, const char *CurPtr) {
   // we are dealing with something invalid
   if (RequiresDelimiter && !isDelimiter(*CurPtr)) {
     SkipUntilDelimiter(CurPtr);
-    FormTokenWithChars(Tok, CurPtr, tok_unknown);
+    FormTokenWithChars(Tok, CurPtr, tok::unknown);
   } else {
     FormTokenWithChars(Tok, CurPtr, Kind);
   }
@@ -266,17 +274,12 @@ void HeavySchemeLexer::LexStringLiteral(Token& Tok, const char *CurPtr) {
   FormTokenWithChars(Tok, CurPtr, tok::string_literal);
 }
 
-void HeavySchemeLexer::LexCharacterLiteral(Token& Tok, const char *CurPtr) {
-  SkipUntilDelimiter(CurPtr);
-  FormTokenWithChars(Tok, CurPtr, tok::char_constant);
-}
-
 void HeavySchemeLexer::LexUnknown(Token& Tok, const char *CurPtr) {
   SkipUntilDelimiter(CurPtr);
   FormTokenWithChars(Tok, CurPtr, tok::unknown);
 }
 
-vois HeavySchemeLexer::SkipUntilDelimiter(const char *CurPtr) {
+void HeavySchemeLexer::SkipUntilDelimiter(const char *CurPtr) {
   while (!isDelimiter(getAndAdvanceChar(CurPtr))) { }
 }
 
@@ -303,9 +306,9 @@ void HeavySchemeLexer::ProcessWhitespace(Token& Tok, const char *&CurPtr) {
   }
 
   if (isHorizontalWhitespace(PrevChar)) {
-    Token.setFlag(Token::LeadingSpace);
+    Tok.setFlag(Token::LeadingSpace);
   } else if (isVerticalWhitespace(PrevChar)) {
-    Token.setFlag(Token::StartOfLine);
+    Tok.setFlag(Token::StartOfLine);
   }
 }
 
@@ -319,4 +322,4 @@ SourceLocation HeavySchemeLexer::getSourceLocation(const char *Loc,
   // the file id from FileLoc with the offset specified.
   unsigned CharNo = Loc-BufferStart;
   return FileLoc.getLocWithOffset(CharNo);
-r
+}

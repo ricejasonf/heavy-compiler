@@ -120,10 +120,6 @@ PPKEYWORD(unassert)
 PPKEYWORD(__public_macro)
 PPKEYWORD(__private_macro)
 
-// Heavy extensions
-PPKEYWORD(heavy_begin)
-PPKEYWORD(heavy_end)
-
 //===----------------------------------------------------------------------===//
 // Language keywords.
 //===----------------------------------------------------------------------===//
@@ -865,6 +861,8 @@ KEYWORD(heavy_end, KEYHEAVY)
 PUNCTUATOR(heavy_vector_lparen, "#(")
 PUNCTUATOR(heavy_grave, "`")
 PUNCTUATOR(heavy_comma_at, ",@")
+PUNCTUATOR(heavy_true, "#t")
+PUNCTUATOR(heavy_false, "#f")
 
 #undef PRAGMA_ANNOTATION
 #undef ANNOTATION

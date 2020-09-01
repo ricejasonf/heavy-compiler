@@ -3171,6 +3171,7 @@ private:
       DeclaratorContext Context);
   bool ParseHeavyMacroParamList(
       SmallVectorImpl<HeavyAliasDecl*> &ParamInfo);
+  bool ParseHeavyScheme();
 };
 
 }  // end namespace clang
