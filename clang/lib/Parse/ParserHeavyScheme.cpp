@@ -13,9 +13,11 @@
 #include "clang/AST/HeavyScheme.h"
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/Parser.h"
+#include "clang/Parse/ParserHeavyScheme.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/raw_ostream.h"
 using namespace clang;
 
 using heavy_scheme::ValueResult;
@@ -27,7 +29,7 @@ namespace {
   // Returns true on an invalid number prefix notation
   bool parseNumberPrefix(const char*& CurPtr,
                          Optional<bool>& IsExact,
-                         Optional<int>& Radix) {
+                         Optional<unsigned>& Radix) {
     if (*CurPtr != '#')
       return false;
 
@@ -62,26 +64,11 @@ namespace {
       return true;
     }
     ++CurPtr;
-    return parseNumberPrefix(CurPtr, IsExact, Radix, Result);
-  }
-
-  bool fitsInBits(int NumDigits, BitWidth, Radix) {
-    switch (Radix) {
-    case 2:
-      return NumDigits <= BitWidth;
-    case 8:
-      return NumDigits <= BitWidth / 3; // Digits are groups of 3 bits.
-    case 10:
-      return NumDigits <= floor(log10(pow(2, bit_width))); // floor(log10(2^64))
-    case 16:
-      return NumDigits <= BitWidth / 4; // Digits are groups of 4 bits.
-    default:
-      llvm_unreachable("impossible Radix");
-    }
+    return parseNumberPrefix(CurPtr, IsExact, Radix);
   }
 
   llvm::Optional<llvm::APInt>
-  tryParseInteger(StringRef TokenSpan, int BitWidth, int Radix) {
+  tryParseInteger(StringRef TokenSpan, unsigned BitWidth, unsigned Radix) {
     // largely inspired by NumericLiteralParser::GetIntegerValue
     llvm::APInt RadixVal(BitWidth, Radix);
     llvm::APInt DigitVal(BitWidth, 0);
@@ -119,28 +106,38 @@ namespace {
 
 bool ParserHeavyScheme::Parse() {
   PP.InitHeavySchemeLexer();
-  ConsumeToken();
-  assert(Tok == tok::kw_heavy_begin && "Expected heavy_begin");
 
-  heavy_scheme::Context Ctx(Actions.getASTContext());
+  heavy_scheme::Context Context = getContext();
   ValueResult Result;
+  ConsumeToken();
   while (true) {
-    Result = ParseExpr(/*IsTopLevel=*/true);
+    Result = ParseTopLevelExpr();
+    ValueResult EvalResult(false);
     if (Result.isUsable()) {
-      write(llvm::errs(), eval(Ctx, Result.get()));
+      EvalResult = eval(Context, Result.get());
+    }
+    if (EvalResult.isUsable()) {
+      write(llvm::errs(), EvalResult.get());
+      llvm::errs() << '\n';
     }
     else {
       break;
     }
   };
 
-  // Return control to C++ Parser
+  // Return control to C++ Lexer
   PP.FinishHeavySchemeLexer();
-  return Result.isInvalid()
+  return Result.isInvalid();
 }
 
-ValueResult ParserHeavyScheme::ParseExpr(bool IsTopLevel = false) {
-  ConsumeToken();
+ValueResult ParserHeavyScheme::ParseTopLevelExpr() {
+  if (Tok.is(tok::kw_heavy_end)) {
+    return ValueEmpty();
+  }
+  return ParseExpr();
+}
+
+ValueResult ParserHeavyScheme::ParseExpr() {
   switch (Tok.getKind()) {
   case tok::l_paren:
     return ParseListStart();
@@ -153,16 +150,11 @@ ValueResult ParserHeavyScheme::ParseExpr(bool IsTopLevel = false) {
   case tok::char_constant:
     return ParseCharConstant();
   case tok::heavy_true:
-    return Context::CreateBoolean(true);
+    return getContext().CreateBoolean(true);
   case tok::heavy_false:
-    return Context::CreateBoolean(false);
+    return getContext().CreateBoolean(false);
   case tok::string_literal:
     return ParseString();
-  case tok::kw_heavy_end:
-    if (IsTopLevel) {
-      return ValueEmpty();
-    }
-    LLVM_FALLTHROUGH;
   default:
     // TODO emit error unexpected token
     return ValueError();
@@ -171,14 +163,15 @@ ValueResult ParserHeavyScheme::ParseExpr(bool IsTopLevel = false) {
 
 ValueResult ParserHeavyScheme::ParseListStart() {
   // Consume the l_paren
+  assert(Tok.is(tok::l_paren));
   ConsumeToken();
 
   if (!Tok.isOneOf(tok::kw_typename,
-                   tok::kw_constexr)) {
+                   tok::kw_constexpr)) {
     return ParseList();
   }
 
-  llvm_unreachable("TODO Implement C++ parser escape sequences")
+  llvm_unreachable("TODO Implement C++ parser escape sequences");
 
 #if 0
   // Parse the keyword as a symbol
@@ -202,10 +195,15 @@ ValueResult ParserHeavyScheme::ParseListStart() {
 
 ValueResult ParserHeavyScheme::ParseList() {
   if (Tok.is(tok::r_paren)) {
-    return Context::CreateEmpty();
+    ConsumeToken();
+    return getContext().CreateEmpty();
   }
 
   ValueResult Car = ParseExpr();
+  if (!Car.isUsable()) {
+    return ValueError();
+  }
+
   ValueResult Cdr;
   if (Tok.is(tok::period)) {
     Cdr = ParseDottedCdr();
@@ -213,13 +211,12 @@ ValueResult ParserHeavyScheme::ParseList() {
     Cdr = ParseList();
   }
 
-  if (Car->isInvalid() ||
-      Cdr->IsInvalid()) {
+  if (!Cdr.isUsable()) {
     return ValueError();
   }
 
-  return Context::CreatePair(Car->getResult(),
-                             Cdr->getResult());
+  return getContext().CreatePair(Car.get(),
+                                 Cdr.get());
 }
 
 // We have a dot while parsing a list,
@@ -234,6 +231,7 @@ ValueResult ParserHeavyScheme::ParseDottedCdr() {
         "TODO emit a diagnostic about illegal dot notation");
     return ValueError();
   }
+  return Cdr;
 }
 
 ValueResult ParserHeavyScheme::ParseCharConstant(){
@@ -242,12 +240,12 @@ ValueResult ParserHeavyScheme::ParseCharConstant(){
 
 ValueResult ParserHeavyScheme::ParseNumber() {
   char const* Current = Tok.getLiteralData();
-  char const* End = Current + (Tok.getLength() - 2);
-  int BitWidth = Context.getASTContext()
-                        .getTargetInfo()
-                        .getIntSize();
+  char const* End = Current + Tok.getLength();
+  int BitWidth = getContext().getASTContext()
+                             .getTargetInfo()
+                             .getIntWidth();
   llvm::Optional<bool> IsExactOpt;
-  llvm::Optional<int> RadixOpt;
+  llvm::Optional<unsigned> RadixOpt;
   llvm::Optional<llvm::APInt> IntOpt;
 
   if (parseNumberPrefix(Current, IsExactOpt, RadixOpt)) {
@@ -255,20 +253,22 @@ ValueResult ParserHeavyScheme::ParseNumber() {
     return ValueError();
   }
 
+  StringRef TokenSpan(Current, End - Current);
   bool IsExact = IsExactOpt.getValueOr(true);
-  int Radix = Radix.getValueOr(10);
+  unsigned Radix = RadixOpt.getValueOr(10);
 
-  StringRef TokenSpan(Current, End);
   IntOpt = tryParseInteger(TokenSpan, BitWidth, Radix);
 
+  ConsumeToken();
+
   if (IsExact && IntOpt.hasValue()) {
-    return Context.CreateInteger(IntOpt.getValue());
+    return getContext().CreateInteger(IntOpt.getValue());
   }
 
-  llvm::APFloat FloatVal();
+  llvm::APFloat FloatVal(0.0f);
   if (IntOpt.hasValue()) {
-    llvm::APInt Int = IntOpt.getValue()
-    FloatVal.convertFromAPInt(Int, Int.isSigned(),
+    llvm::APInt Int = IntOpt.getValue();
+    FloatVal.convertFromAPInt(Int, /*isSigned=*/true,
                            llvm::APFloat::rmNearestTiesToEven);
   } else {
     auto Result = FloatVal.convertFromString(
@@ -278,7 +278,7 @@ ValueResult ParserHeavyScheme::ParseNumber() {
       return ValueError();
     }
   }
-  return Context.CreateFloat(FloatVal);
+  return getContext().CreateFloat(FloatVal);
 }
 
 ValueResult ParserHeavyScheme::ParseString() {
@@ -288,7 +288,7 @@ ValueResult ParserHeavyScheme::ParseString() {
   char const* End = Current + (Tok.getLength() - 2);
   LiteralResult.clear();
   while (Current < End) {
-    StringRef TokenSpan(Current, End);
+    StringRef TokenSpan(Current, End - Current);
     char c = TokenSpan[0];
     // R5RS specifically forbids a backslash in a string constant
     // without being escaped by another backslash, but it then
@@ -309,12 +309,19 @@ ValueResult ParserHeavyScheme::ParseString() {
     }
     else if (TokenSpan.startswith("\r\n")) {
       // normalize source-file newlines
-      c = '\n'
+      c = '\n';
     }
-    LiteralResult.append(c);
+    LiteralResult.push_back(c);
     ++Current;
   }
-  return Context.CreateString(StringRef(LiteralResult));
+  ConsumeToken();
+  return getContext().CreateString(StringRef(LiteralResult));
+}
+
+ValueResult ParserHeavyScheme::ParseSymbol(){
+  StringRef Str = Tok.getRawIdentifier();
+  ConsumeToken();
+  return getContext().CreateSymbol(Str);
 }
 
 ValueResult ParserHeavyScheme::ParseVector(){

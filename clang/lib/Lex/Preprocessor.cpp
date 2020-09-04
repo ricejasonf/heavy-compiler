@@ -1406,12 +1406,13 @@ void Preprocessor::createPreprocessingRecord() {
 
 void Preprocessor::InitHeavySchemeLexer() {
   if (!TheHeavySchemeLexer) {
-    TheHeavySchemeLexer = new HeavySchemeLexer(*this);
+    TheHeavySchemeLexer = std::unique_ptr<HeavySchemeLexer>(
+        new HeavySchemeLexer(*this));
   }
-  TheHeavySchemeLexer->Init(CurLexer.getFileLoc(),
-                            CurLexer.BufferStart,
-                            CurLexer.BufferEnd,
-                            CurLexer.BufferPtr);
+  TheHeavySchemeLexer->Init(CurLexer->getFileLoc(),
+                            CurLexer->BufferStart,
+                            CurLexer->BufferEnd,
+                            CurLexer->BufferPtr);
 }
 
 void Preprocessor::FinishHeavySchemeLexer() {

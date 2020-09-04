@@ -37,12 +37,13 @@
 namespace clang { namespace heavy_scheme {
 class Context;
 class Value;
+using ValueResult = ActionResult<Value *>;
 
 // The resulting Value* of the eval function
 // may be invalidated on a call to garbage
 // collection if it is not bound to a variable
 // at top level scope
-Value* eval(Context&, Value*);
+ValueResult eval(Context&, Value*);
 void write(raw_ostream&, Value*);
 
 // Value - A result of an evaluation
@@ -75,16 +76,15 @@ protected:
 public:
   bool isMutable() const { return IsMutable; }
   Kind getKind() const { return ValueKind; }
-  bool is(Kind K) const { return getKind() == K; }
 };
 
-class Empty : Value {
-  // uhhh nothing?
-  static bool classof(Kind K) { return K == Kind::Empty; }
+class Empty : public Value {
 public:
   Empty()
     : Value(Kind::Empty)
   { }
+
+  static bool classof(Value const* V) { return V->getKind() == Kind::Empty; }
 };
 
 class Boolean : public Value {
@@ -96,7 +96,7 @@ public:
   { }
 
   auto getVal() { return Val; }
-  static bool classof(Kind K) { return K == Kind::Boolean; }
+  static bool classof(Value const* V) { return V->getKind() == Kind::Boolean; }
 };
 
 // Base class for Numeric types
@@ -108,9 +108,9 @@ protected:
 public:
 
   // maybe arithmetic functions go here?
-  static bool classof(Kind K) {
-    return K == Kind::Integer ||
-           K == Kind::Float;
+  static bool classof(Value const* V) {
+    return V->getKind() == Kind::Integer ||
+           V->getKind() == Kind::Float;
   }
 };
 
@@ -123,20 +123,20 @@ public:
   { }
 
   auto getVal() { return Val; }
-  static bool classof(Kind K) { return K == Kind::Integer; }
+  static bool classof(Value const* V) { return V->getKind() == Kind::Integer; }
 };
 
 class Float : public Number {
   llvm::APFloat Val;
 
 public:
-  Float(float V)
+  Float(llvm::APFloat V)
     : Number(Kind::Float)
     , Val(V)
   { }
 
   auto getVal() { return Val; }
-  static bool classof(Kind K) { return K == Kind::Float; }
+  static bool classof(Value const* V) { return V->getKind() == Kind::Float; }
 };
 
 class Char : public Value {
@@ -149,20 +149,20 @@ public:
   { }
 
   auto getVal() { return Val; }
-  static bool classof(Kind K) { return K == Kind::Char; }
+  static bool classof(Value const* V) { return V->getKind() == Kind::Char; }
 };
 
 class Symbol : public Value {
-  IdentifierInfo* Name;
+  StringRef Val;
 
 public:
-  Symbol(IdentifierInfo* II)
+  Symbol(StringRef V)
     : Value(Kind::Symbol)
-    , Name(II)
+    , Val(V)
   { }
 
-  IdentifierInfo* getIdentifier() { return Name; }
-  static bool classof(Kind K) { return K == Kind::Symbol; }
+  StringRef getVal() { return Val; }
+  static bool classof(Value const* V) { return V->getKind() == Kind::Symbol; }
 };
 
 class String : public Value {
@@ -174,7 +174,7 @@ public:
     , Val(V)
   { }
 
-  static bool classof(Kind K) { return K == Kind::String; }
+  static bool classof(Value const* V) { return V->getKind() == Kind::String; }
 };
 
 class Pair : public Value {
@@ -182,7 +182,7 @@ public:
   Value* Car;
   Value* Cdr;
 
-  static bool classof(Kind K) { return K == Kind::Pair; }
+  static bool classof(Value const* V) { return V->getKind() == Kind::Pair; }
 
   Pair(Value* First, Value* Second)
     : Value(Kind::Pair)
@@ -208,7 +208,7 @@ public:
   { }
 
   Pair* getVal() { return Val; }
-  static bool classof(Kind K) { return K == Kind::Procedure; }
+  static bool classof(Value const* V) { return V->getKind() == Kind::Procedure; }
 };
 
 class Vector : public Value {
@@ -221,12 +221,12 @@ public:
   { }
 
   ArrayRef<Value*> getInternal() { return Vals; }
-  static bool classof(Kind K) { return K == Kind::Vector; }
+  static bool classof(Value const* V) { return V->getKind() == Kind::Vector; }
 };
 
-class CppDecl : Value {
+class CppDecl : public Value {
   Decl* Val;
-  static bool classof(Kind K) { return K == Kind::CppDecl; }
+  static bool classof(Value const* V) { return V->getKind() == Kind::CppDecl; }
 public:
   CppDecl(Decl* V)
     : Value(Kind::CppDecl)
@@ -234,7 +234,7 @@ public:
   { }
 };
 
-class Typename : Value {
+class Typename : public Value {
   QualType Val;
 public:
   Typename(QualType V)
@@ -242,7 +242,7 @@ public:
     , Val(V)
   { }
 
-  static bool classof(Kind K) { return K == Kind::Typename; }
+  static bool classof(Value const* V) { return V->getKind() == Kind::Typename; }
 };
 
 class Context {
@@ -265,31 +265,29 @@ public:
   Integer* CreateInteger(llvm::APInt V);
   Float* CreateFloat(llvm::APFloat V);
   Pair* CreatePair(Value* V1, Value* V2) { return new (ASTCtx) Pair(V1, V2); }
-  Procedure* CreateProcedure(Value* Pair) {
+  Procedure* CreateProcedure(Pair* Pair) {
     return new (ASTCtx) Procedure(Pair);
   }
   String* CreateString(StringRef V);
-  Symbol* CreateSymbol(IdentifierInfo* II) { return new (ASTCtx) Symbol(II); }
-  Typename* CreateTypename(QualType* V) { return new (ASTCtx) Typename(V); }
-  Vector* CreateVector(ArrayRef<Value*> Vs) { return new (ASTCtx) Vector(V); }
+  Symbol* CreateSymbol(StringRef V) { return new (ASTCtx) Symbol(V); }
+  Typename* CreateTypename(QualType QT) { return new (ASTCtx) Typename(QT); }
+  Vector* CreateVector(ArrayRef<Value*> Vs) { return new (ASTCtx) Vector(Vs); }
 
   String* CreateMutableString(StringRef V) {
-    String* S = CreateString(V);
-    New.IsMutable = true;
-    return S;
+    String* New = CreateString(V);
+    New->IsMutable = true;
+    return New;
   }
 
   Vector* CreateMutableVector(ArrayRef<Value*> Vs) {
     Vector* New = CreateVector(Vs);
-    New.IsMutable = true;
+    New->IsMutable = true;
     return New;
   }
 };
 
-using ValueResult = ActionResult<Value *>;
-
-inline ValueError() { return ValueResult(true); }
-inline ValueEmpty() { return ValueResult(false); }
+inline auto ValueError() { return ValueResult(true); }
+inline auto ValueEmpty() { return ValueResult(false); }
 
 // ValueVisitor
 // This will be the base class for evaluation and printing
@@ -301,7 +299,7 @@ class ValueVisitor {
   template <typename T> \
   RetTy Visit ## NAME(T* V) { return getDerived().VisitValue(V); }
 
-  Derived& getDerived() { return static_cast<Derived>(*this); }
+  Derived& getDerived() { return static_cast<Derived&>(*this); }
   Derived const& getDerived() const { return static_cast<Derived>(*this); }
 
 protected:
@@ -340,6 +338,8 @@ public:
     case Value::Kind::Symbol:     DISPATCH(Symbol);
     case Value::Kind::Typename:   DISPATCH(Typename);
     case Value::Kind::Vector:     DISPATCH(Vector);
+    default:
+      llvm_unreachable("Invalid Value Kind");
     }
   }
 

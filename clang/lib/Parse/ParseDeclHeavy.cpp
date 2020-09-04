@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Parse/Parser.h"
-#include "clang/Parse/HeavySchemeParser.h"
+#include "clang/Parse/ParserHeavyScheme.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
@@ -27,8 +27,12 @@
 using namespace clang;
 
 bool Parser::ParseHeavyScheme() {
-  HeavySchemeParser P(PP, *this);
-  return P.Parse();
+  ParserHeavyScheme P(PP, *this);
+  bool Result = P.Parse();
+  // The Lexers position has been changed
+  // so we need to re-prime the look-ahead
+  ConsumeToken();
+  return Result;
 }
 
 Decl*

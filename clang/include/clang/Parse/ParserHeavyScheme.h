@@ -14,6 +14,7 @@
 #define LLVM_CLANG_PARSE_PARSER_HEAVY_SCHEME_H
 
 #include "clang/Lex/Preprocessor.h"
+#include "clang/AST/HeavyScheme.h"
 #include <string>
 
 namespace clang {
@@ -21,11 +22,12 @@ namespace clang {
 class Parser;
 
 class ParserHeavyScheme {
+  using ValueResult = heavy_scheme::ValueResult;
   Preprocessor& PP;
   Parser& CxxParser;
   Token Tok = {};
   SourceLocation PrevTokLocation;
-  std::string LiteralResult = {}
+  std::string LiteralResult = {};
 
   SourceLocation ConsumeToken() {
     PrevTokLocation = Tok.getLocation();
@@ -33,11 +35,20 @@ class ParserHeavyScheme {
     return PrevTokLocation;
   }
 
+  bool TryConsumeToken(tok::TokenKind Expected) {
+    if (Tok.isNot(Expected))
+      return false;
+    ConsumeToken();
+    return true;
+  }
+
+  ValueResult ParseTopLevelExpr();
   ValueResult ParseExpr();
 
   ValueResult ParseCharConstant();
   ValueResult ParseCppDecl();
   ValueResult ParseList();
+  ValueResult ParseListStart();
   ValueResult ParseNumber();
   ValueResult ParseString();
   ValueResult ParseSymbol();
@@ -46,10 +57,15 @@ class ParserHeavyScheme {
 
   ValueResult ParseDottedCdr();
   ValueResult ParseSpecialEscapeSequence();
+
+  heavy_scheme::Context getContext() {
+    return heavy_scheme::Context(CxxParser.getActions().getASTContext());
+  }
+
 public:
   ParserHeavyScheme(Preprocessor& PP, Parser& P)
     : PP(PP)
-    , Parser(P)
+    , CxxParser(P)
   { }
 
   // Parses until the terminator token (ie heavy_end)

@@ -63,17 +63,25 @@ private:
   void LexSharpLiteral(Token& Tok, const char *CurPtr);
   void LexStringLiteral(Token& Tok, const char *CurPtr);
   void LexUnknown(Token& Tok, const char *CurPtr);
-  void SkipUntilDelimiter(const char *CurPtr);
+  void SkipUntilDelimiter(const char *&CurPtr);
   void ProcessWhitespace(Token& Tok, const char *&CurPtr);
 
-  char getAndAdvanceChar(const char *&Ptr) {
-    return *Ptr++;
+  // Advances the Ptr and returns the char
+  char ConsumeChar(const char *&Ptr) {
+    return *(++Ptr);
   }
 
   void FormRawIdentifier(Token &Result, const char *TokEnd) {
     const char* StartPtr = BufferPtr;
     FormTokenWithChars(Result, TokEnd, tok::raw_identifier);
     Result.setRawIdentifierData(StartPtr);
+  }
+
+  void FormLiteral(Token &Result, const char *TokEnd,
+                   tok::TokenKind Kind) {
+    const char* StartPtr = BufferPtr;
+    FormTokenWithChars(Result, TokEnd, Kind);
+    Result.setLiteralData(StartPtr);
   }
 
   // Copy/Pasted from Lexer

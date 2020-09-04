@@ -105,8 +105,8 @@ void HeavySchemeLexer::Lex(Token& Tok) {
   ProcessWhitespace(Tok, CurPtr);
 
   // Act on the current character
-  char c = *CurPtr;
-  // There are all considered "initial characters".
+  char c = *CurPtr++;
+  // These are all considered "initial characters".
   switch(c) {
   // Identifiers.
   case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G':
@@ -157,12 +157,14 @@ void HeavySchemeLexer::Lex(Token& Tok) {
 }
 
 void HeavySchemeLexer::LexIdentifier(Token& Tok, const char *CurPtr) {
-  char c;
-  do {
-    c = getAndAdvanceChar(CurPtr);
-  } while (isExtendedAlphabet(c));
+  bool IsValid = true;
+  char c = *CurPtr;
+  while (!isDelimiter(c)) {
+    IsValid |= isExtendedAlphabet(c);
+    c = ConsumeChar(CurPtr);
+  }
 
-  if (!isDelimiter(c)) {
+  if (!IsValid) {
     return LexUnknown(Tok, CurPtr);
   }
 
@@ -181,21 +183,23 @@ void HeavySchemeLexer::LexIdentifier(Token& Tok, const char *CurPtr) {
 }
 
 void HeavySchemeLexer::LexNumberOrIdentifier(Token& Tok, const char *CurPtr) {
-  const char *OrigPtr = CurPtr;
-  char c = getAndAdvanceChar(CurPtr);
-  if (isDelimiter(c)) {
+  // + and - are valid characters by themselves
+  assert(*(CurPtr - 1) == '+' ||
+         *(CurPtr - 1) == '-');
+  if (isDelimiter(*CurPtr)) {
     // '+' | '-' are valid identifiers
     return FormRawIdentifier(Tok, CurPtr);
   }
   // Lex as a number
-  LexNumber(Tok, OrigPtr);
+  LexNumber(Tok, CurPtr);
 }
 
 void HeavySchemeLexer::LexNumberOrEllipsis(Token& Tok, const char *CurPtr) {
   const char *OrigPtr = CurPtr;
-  char c1 = getAndAdvanceChar(CurPtr);
-  char c2 = getAndAdvanceChar(CurPtr);
-  char c3 = getAndAdvanceChar(CurPtr);
+  // We already consumed a dot .
+  char c1 = ConsumeChar(CurPtr);
+  char c2 = ConsumeChar(CurPtr);
+  char c3 = ConsumeChar(CurPtr);
   if (c1 == '.' && c2 ==  '.' && isDelimiter(c3)) {
     // '...' is a valid identifier
     return FormRawIdentifier(Tok, CurPtr);
@@ -205,21 +209,16 @@ void HeavySchemeLexer::LexNumberOrEllipsis(Token& Tok, const char *CurPtr) {
 }
 
 void HeavySchemeLexer::LexNumber(Token& Tok, const char *CurPtr) {
-  while (true) {
-    char c = getAndAdvanceChar(CurPtr);
-    if (isDigit(c) || c == '.')
-      continue;
-    if (!isDelimiter(c))
-      LexUnknown(Tok, CurPtr);
-    break;
-  }
-  FormTokenWithChars(Tok, CurPtr, tok::numeric_constant);
+  // let the parser figure it out
+  SkipUntilDelimiter(CurPtr);
+  FormLiteral(Tok, CurPtr, tok::numeric_constant);
 }
 
 // These could be numbers, character constants, or other literals
 // such as #t #f for true and false
 void HeavySchemeLexer::LexSharpLiteral(Token& Tok, const char *CurPtr) {
-  char c = getAndAdvanceChar(CurPtr);
+  assert(*CurPtr == '#');
+  char c = ConsumeChar(CurPtr);
   // If we expect the token to end after
   // `c` then we set RequiresDelimiter
   bool RequiresDelimiter = false;
@@ -227,7 +226,7 @@ void HeavySchemeLexer::LexSharpLiteral(Token& Tok, const char *CurPtr) {
   switch (c) {
   case '\\':
     SkipUntilDelimiter(CurPtr);
-    return FormTokenWithChars(Tok, CurPtr, tok::char_constant);
+    return FormLiteral(Tok, CurPtr, tok::char_constant);
   case 't':
     Kind = tok::heavy_true;
     RequiresDelimiter = true;
@@ -260,18 +259,20 @@ void HeavySchemeLexer::LexSharpLiteral(Token& Tok, const char *CurPtr) {
 }
 
 void HeavySchemeLexer::LexStringLiteral(Token& Tok, const char *CurPtr) {
-  while (true) {
-    char c = getAndAdvanceChar(CurPtr);
-    if (c == '"')
-      break;
+  // Already consumed the "
+  char c = *CurPtr;
+  while (c != '"') {
     if (c == '\\') {
       // As an extension to R5RS we just consume any
       // character following a backslash so we can pass
       // through a reasonable subset of valid C++ string literals.
-      getAndAdvanceChar(CurPtr);
+      ConsumeChar(CurPtr);
     }
+    c = ConsumeChar(CurPtr);
   }
-  FormTokenWithChars(Tok, CurPtr, tok::string_literal);
+  // Consume the "
+  ConsumeChar(CurPtr);
+  FormLiteral(Tok, CurPtr, tok::string_literal);
 }
 
 void HeavySchemeLexer::LexUnknown(Token& Tok, const char *CurPtr) {
@@ -279,8 +280,11 @@ void HeavySchemeLexer::LexUnknown(Token& Tok, const char *CurPtr) {
   FormTokenWithChars(Tok, CurPtr, tok::unknown);
 }
 
-void HeavySchemeLexer::SkipUntilDelimiter(const char *CurPtr) {
-  while (!isDelimiter(getAndAdvanceChar(CurPtr))) { }
+void HeavySchemeLexer::SkipUntilDelimiter(const char *&CurPtr) {
+  char c = *CurPtr;
+  while (!isDelimiter(c)) {
+    c = ConsumeChar(CurPtr);
+  }
 }
 
 void HeavySchemeLexer::ProcessWhitespace(Token& Tok, const char *&CurPtr) {
@@ -295,14 +299,14 @@ void HeavySchemeLexer::ProcessWhitespace(Token& Tok, const char *&CurPtr) {
   while (true) {
     PrevChar = c;
     while (isHorizontalWhitespace(c)) {
-      c = getAndAdvanceChar(CurPtr);
+      c = ConsumeChar(CurPtr);
     }
 
     if (!isVerticalWhitespace(c)) {
       break;
     }
 
-    c = getAndAdvanceChar(CurPtr);
+    c = ConsumeChar(CurPtr);
   }
 
   if (isHorizontalWhitespace(PrevChar)) {
@@ -310,6 +314,7 @@ void HeavySchemeLexer::ProcessWhitespace(Token& Tok, const char *&CurPtr) {
   } else if (isVerticalWhitespace(PrevChar)) {
     Tok.setFlag(Token::StartOfLine);
   }
+  BufferPtr = CurPtr;
 }
 
 // Copy/Pasted from Lexer (mostly)
