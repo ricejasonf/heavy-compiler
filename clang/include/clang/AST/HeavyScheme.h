@@ -13,16 +13,13 @@
 #ifndef LLVM_CLANG_AST_HEAVY_SCHEME_H
 #define LLVM_CLANG_AST_HEAVY_SCHEME_H
 
-#include "clang/AST/ASTContextAllocate.h"
-#include "clang/AST/Type.h"
-#include "clang/Basic/IdentifierTable.h"
-#include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Ownership.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
@@ -37,7 +34,9 @@
 namespace clang { namespace heavy_scheme {
 class Context;
 class Value;
-using ValueResult = ActionResult<Value *>;
+using ValueResult = ActionResult<Value*>;
+inline auto ValueError() { return ValueResult(true); }
+inline auto ValueEmpty() { return ValueResult(false); }
 
 // The resulting Value* of the eval function
 // may be invalidated on a call to garbage
@@ -51,6 +50,7 @@ class Value {
   friend class Context;
 public:
   enum class Kind {
+    Undefined,
     Boolean,
     Char,
     CppDecl, // C++ decl name
@@ -65,6 +65,8 @@ public:
     Vector
   };
 
+  ~Value() = delete;
+
 private:
   Kind ValueKind;
   bool IsMutable = false;
@@ -76,6 +78,19 @@ protected:
 public:
   bool isMutable() const { return IsMutable; }
   Kind getKind() const { return ValueKind; }
+};
+
+// This type is for internal use only
+// specifically for uninitialized bindings
+// (didn't want to use NULL and have to
+//  check that everywhere)
+class Undefined : public Value {
+public:
+  Undefined()
+    : Value(Kind::Undefined)
+  { }
+
+  static bool classof(Value const* V) { return V->getKind() == Kind::Undefined; }
 };
 
 class Empty : public Value {
@@ -192,22 +207,23 @@ public:
 };
 
 class Procedure : public Value {
-  Pair* Val;
+  Pair* Body;
+  Value** Bindings;
+  unsigned Arity;
+  unsigned NumBindings;
+
+  // The first set of Bindings should be the parameters
+  // initialized to Undefined. Arity is the length of this set.
 
 public:
-  // Just store the external representation I think
-  // (name . (formals . (body . ()))
-  // name    (car x)
-  // formals (cadr x)
-  // body    (caadr x)
-  // ... I think that is right
-
-  Procedure(Pair* V)
+  Procedure(Pair* Body, Value** Bindings, unsigned NumBindings, unsigned Arity)
     : Value(Kind::Procedure)
     , Val(V)
   { }
 
-  Pair* getVal() { return Val; }
+  Pair* getBody() { return Body; }
+  ArrayRef<Value*> getBindings() { return {Bindings, NumBindings}; }
+
   static bool classof(Value const* V) { return V->getKind() == Kind::Procedure; }
 };
 
@@ -223,6 +239,51 @@ public:
   ArrayRef<Value*> getInternal() { return Vals; }
   static bool classof(Value const* V) { return V->getKind() == Kind::Vector; }
 };
+
+class Binding : public Value {
+  friend class Context;
+  // Binding is just a tagged list
+  // that stores a key/value and new location
+  // for use with garbage collection
+  //
+  // Possible representations:
+  // (symbol value)
+  // (symbol value . newloc)
+  Pair* P;
+
+  Binding(Pair* P)
+    : P(P)
+  { }
+public:
+  Symbol* getName() {
+    return cast<Symbol>(P.Car);
+  }
+
+  ValueResult Lookup(Symbol* Name) {
+    if (Name->getVal() == getName()->getVal()) {
+      return cast<Pair>(P->Cdr)->Car;
+    }
+    return ValueEmpty();
+  }
+};
+
+template <typename AllocatorTy>
+class ModuleRegion : public Value {
+  friend class Context;
+
+  // TODO maybe allow specifying a prefix
+  //      for lookup
+  llvm::StringMap<Value*, AllocatorTy> Map;
+
+  ModuleRegion(AllocatorTy A)
+    , Map(A)
+  { }
+
+public:
+  ValueResult Lookup(Symbol* Name);
+  static bool classof(Value const* V) { return V->getKind() == Kind::ModuleRegion; }
+};
+
 
 class CppDecl : public Value {
   Decl* Val;
@@ -246,32 +307,37 @@ public:
 };
 
 class Context {
-  ASTContext& ASTCtx;
+  using AllocatorTy = llvm::BumpPtrAllocator;
+  // TODO eventually we can make our own allocator
+  //      that has space for garbage collection
+  AllocatorTy TrashHeap;
+  Parser* CxxParser = nullptr;
+
+  bool ProcessFormals(Value* V, BindingRegion* Region, int& Arity);
+  bool AddBinding(BindingRegion* Region, Value* V);
+  BindingRegion* CreateRegion();
 
 public:
-  Context(ASTContext& C)
-    : ASTCtx(C)
+
+  Context(Parser& P)
+    : CxxParser(&P)
   { }
 
-  // TODO Eventually we want to hide how we
-  //      allocate memory so we can add garbage
-  //      collection.
-  ASTContext& getASTContext() { return ASTCtx; }
-
-  Boolean* CreateBoolean(bool V) { return new (ASTCtx) Boolean(V); }
-  Char* CreateChar(char V) { return new (ASTCtx) Char(V); }
-  CppDecl* CreateCppDecl(Decl* V) { return new (ASTCtx) CppDecl(V); }
-  Empty* CreateEmpty() { return new (ASTCtx) Empty(); }
+  Boolean* CreateBoolean(bool V) { return new (TrashHeap) Boolean(V); }
+  Char* CreateChar(char V) { return new (TrashHeap) Char(V); }
+  CppDecl* CreateCppDecl(Decl* V) { return new (TrashHeap) CppDecl(V); }
+  Empty* CreateEmpty() { return new (TrashHeap) Empty(); }
   Integer* CreateInteger(llvm::APInt V);
   Float* CreateFloat(llvm::APFloat V);
-  Pair* CreatePair(Value* V1, Value* V2) { return new (ASTCtx) Pair(V1, V2); }
-  Procedure* CreateProcedure(Pair* Pair) {
-    return new (ASTCtx) Procedure(Pair);
-  }
+  Pair* CreatePair(Value* V1, Value* V2) { return new (TrashHeap) Pair(V1, V2); }
   String* CreateString(StringRef V);
-  Symbol* CreateSymbol(StringRef V) { return new (ASTCtx) Symbol(V); }
-  Typename* CreateTypename(QualType QT) { return new (ASTCtx) Typename(QT); }
-  Vector* CreateVector(ArrayRef<Value*> Vs) { return new (ASTCtx) Vector(Vs); }
+  Symbol* CreateSymbol(StringRef V) { return new (TrashHeap) Symbol(V); }
+  Typename* CreateTypename(QualType QT) {
+    return new (TrashHeap) Typename(QT);
+  }
+  Vector* CreateVector(ArrayRef<Value*> Vs) {
+    return new (TrashHeap) Vector(Vs);
+  }
 
   String* CreateMutableString(StringRef V) {
     String* New = CreateString(V);
@@ -284,10 +350,10 @@ public:
     New->IsMutable = true;
     return New;
   }
-};
 
-inline auto ValueError() { return ValueResult(true); }
-inline auto ValueEmpty() { return ValueResult(false); }
+  Binding* CreateModuleRegion(Symbol* S, Value*);
+  Binding* CreateBinding(Symbol* S, Value*);
+};
 
 // ValueVisitor
 // This will be the base class for evaluation and printing
