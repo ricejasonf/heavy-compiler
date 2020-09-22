@@ -20,10 +20,10 @@
 #include "llvm/Support/raw_ostream.h"
 using namespace clang;
 
-using heavy_scheme::ValueResult;
-using heavy_scheme::ValueError;
-using heavy_scheme::ValueEmpty;
-using heavy_scheme::Context;
+using heavy::ValueResult;
+using heavy::ValueError;
+using heavy::ValueEmpty;
+using heavy::Context;
 
 namespace {
   // Returns true on an invalid number prefix notation
@@ -107,9 +107,14 @@ namespace {
 bool ParserHeavyScheme::Parse() {
   PP.InitHeavySchemeLexer();
 
-  heavy_scheme::Context Context = getContext();
-  ValueResult Result;
   ConsumeToken();
+  if (!TryConsumeToken(tok::l_brace)) {
+    CxxParser.Diag(Tok, diag::err_expected) << tok::l_brace;
+    return true;
+  }
+
+  heavy::Context Context = getContext();
+  ValueResult Result;
   while (true) {
     Result = ParseTopLevelExpr();
     ValueResult EvalResult(false);
@@ -131,7 +136,9 @@ bool ParserHeavyScheme::Parse() {
 }
 
 ValueResult ParserHeavyScheme::ParseTopLevelExpr() {
-  if (Tok.is(tok::kw_heavy_end)) {
+  if (Tok.is(tok::r_brace)) {
+    // The end of 
+    //    heavy_scheme { ... }
     return ValueEmpty();
   }
   return ParseExpr();

@@ -23,7 +23,7 @@
 #include <algorithm>
 #include <cstring>
 
-using namespace clang::heavy_scheme;
+using namespace clang::heavy;
 using clang::dyn_cast;
 using clang::cast;
 using clang::isa;
@@ -292,7 +292,7 @@ private:
 
 } // end anon namespace
 
-namespace clang { namespace heavy_scheme {
+namespace clang { namespace heavy {
 ValueResult eval(Context& C, Value* V) {
   Evaluator Eval(C);
   return Eval.Visit(V);
@@ -302,4 +302,4 @@ void write(llvm::raw_ostream& OS, Value* V) {
   Writer W(OS);
   return W.Visit(V);
 }
-}} // end of namespace clang::heavy_scheme
+}} // end of namespace clang::heavy

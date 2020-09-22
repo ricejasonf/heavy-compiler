@@ -27,8 +27,7 @@ class SourceManager;
 class HeavySchemeLexer {
   friend class Preprocessor;
   Preprocessor& PP;
-  IdentifierInfo* Ident_heavy_begin = nullptr;
-  IdentifierInfo* Ident_heavy_end = nullptr;
+  IdentifierInfo* Ident_heavy_scheme = nullptr;
   SourceLocation FileLoc;
   const char* BufferStart = nullptr;
   const char* BufferEnd = nullptr;

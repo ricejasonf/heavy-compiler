@@ -23,7 +23,7 @@ namespace clang {
 class Parser;
 
 class ParserHeavyScheme {
-  using ValueResult = heavy_scheme::ValueResult;
+  using ValueResult = heavy::ValueResult;
   Preprocessor& PP;
   Parser& CxxParser;
   Token Tok = {};
@@ -59,8 +59,8 @@ class ParserHeavyScheme {
   ValueResult ParseDottedCdr();
   ValueResult ParseSpecialEscapeSequence();
 
-  heavy_scheme::Context getContext() {
-    return heavy_scheme::Context(CxxParser);
+  heavy::Context getContext() {
+    return heavy::Context(CxxParser);
   }
 
 public:
@@ -71,7 +71,7 @@ public:
 
   // Parses until the terminator token (ie heavy_end)
   // and evaluates top level expressions.
-  // Expects that the first token is heavy_begin
+  // Expects that the first token is heavy_scheme
   // Returns true if there was an error
   bool Parse();
 };

@@ -35,7 +35,7 @@ namespace clang {
 class Parser;
 }
 
-namespace clang { namespace heavy_scheme {
+namespace clang { namespace heavy {
 class Context;
 class Value;
 using ValueResult = ActionResult<Value*>;
@@ -422,6 +422,6 @@ public:
 #undef VISIT_FN
 };
 
-}} // namespace clang::heavy_scheme
+}} // namespace clang::heavy
 
 #endif // LLVM_CLANG_AST_HEAVY_SCHEME_H

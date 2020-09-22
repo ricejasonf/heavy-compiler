@@ -1780,7 +1780,7 @@ Parser::ParseDeclaration(DeclaratorContext Context, SourceLocation &DeclEnd,
   case tok::kw_heavy_macro:
     SingleDecl = ParseHeavyMacroDeclaration(Context);
     break;
-  case tok::kw_heavy_begin:
+  case tok::kw_heavy_scheme:
     ParseHeavyScheme();
     return nullptr;
   default:

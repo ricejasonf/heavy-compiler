@@ -3299,7 +3299,6 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.CompleteMemberPointers = Args.hasArg(OPT_fcomplete_member_pointers);
   Opts.BuildingPCHWithObjectFile = Args.hasArg(OPT_building_pch_with_obj);
-  llvm::errs() << "Args.hasArg(OPT_fheavy): " << Args.hasArg(OPT_fheavy) << '\n'; 
   Opts.Heavy = Args.hasArg(OPT_fheavy);
 }
 

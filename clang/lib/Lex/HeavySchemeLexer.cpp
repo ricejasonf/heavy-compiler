@@ -95,8 +95,7 @@ namespace {
 
 HeavySchemeLexer::HeavySchemeLexer(Preprocessor& PP)
   : PP(PP)
-  , Ident_heavy_begin(PP.getIdentifierInfo("heavy_begin"))
-  , Ident_heavy_end(PP.getIdentifierInfo("heavy_end"))
+  , Ident_heavy_scheme(PP.getIdentifierInfo("heavy_scheme"))
 { }
 
 void HeavySchemeLexer::Lex(Token& Tok) {
@@ -140,6 +139,18 @@ void HeavySchemeLexer::Lex(Token& Tok) {
   case ')':
     Kind = tok::r_paren;
     break;
+  case '{':
+    Kind = tok::l_brace;
+    break;
+  case '}':
+    Kind = tok::r_brace;
+    break;
+  case '[':
+    Kind = tok::l_square;
+    break;
+  case ']':
+    Kind = tok::r_square;
+    break;
   case ',':
     // TODO handle quasiquotation token '@,'
     Kind = tok::comma;
@@ -168,15 +179,11 @@ void HeavySchemeLexer::LexIdentifier(Token& Tok, const char *CurPtr) {
     return LexUnknown(Tok, CurPtr);
   }
 
-  // Check for heavy_begin and heavy_end which are the only
-  // non-bindable syntactic keywords as they are really an
-  // extension to the host C++ syntax
+  // Check for heavy_scheme
   StringRef IdStr(BufferPtr, CurPtr - BufferPtr);
   IdentifierInfo* II = PP.getIdentifierInfo(IdStr);
-  if (II == Ident_heavy_begin) {
-    return FormTokenWithChars(Tok, CurPtr, tok::kw_heavy_begin);
-  } else if (II == Ident_heavy_end) {
-    return FormTokenWithChars(Tok, CurPtr, tok::kw_heavy_end);
+  if (II == Ident_heavy_scheme) {
+    return FormTokenWithChars(Tok, CurPtr, tok::kw_heavy_scheme);
   } else {
     return FormRawIdentifier(Tok, CurPtr);
   }

@@ -854,8 +854,7 @@ ANNOTATION(header_unit)
 
 // Keywwords for Heavy
 KEYWORD(heavy_macro,  KEYHEAVY)
-KEYWORD(heavy_begin, KEYHEAVY)
-KEYWORD(heavy_end, KEYHEAVY)
+KEYWORD(heavy_scheme, KEYHEAVY)
 
 // HeavyScheme specific punctuators
 PUNCTUATOR(heavy_vector_lparen, "#(")
