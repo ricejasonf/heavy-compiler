@@ -165,32 +165,7 @@ ValueResult ParserHeavyScheme::ParseListStart() {
   // Consume the l_paren
   assert(Tok.is(tok::l_paren));
   ConsumeToken();
-
-  if (!Tok.isOneOf(tok::kw_typename,
-                   tok::kw_constexpr)) {
-    return ParseList();
-  }
-
-  llvm_unreachable("TODO Implement C++ parser escape sequences");
-
-#if 0
-  // Parse the keyword as a symbol
-  ValueResult Car = ParseSymbol();
-
-  PrepareToLexCXX();
-  //
-  // handle special escape sequences
-  if (Tok.is(tok::kw_typename)) {
-    TypeResult TR = Parser.ParseTypeName();
-  } else if (tok::kw_constexpr) {
-    ExprResult = Parser.ParseExpr();
-    // uhh we expect the expr to be the name of a declaration
-  }
-    if (!TryConsumeToken(tok::r_paren)) {
-      // TODO emit error of illegal notation
-    }
-  }
-#endif
+  return ParseList();
 }
 
 ValueResult ParserHeavyScheme::ParseList() {
