@@ -13,8 +13,9 @@
 #ifndef LLVM_CLANG_PARSE_PARSER_HEAVY_SCHEME_H
 #define LLVM_CLANG_PARSE_PARSER_HEAVY_SCHEME_H
 
-#include "clang/Lex/Preprocessor.h"
 #include "clang/AST/HeavyScheme.h"
+#include "clang/Lex/Preprocessor.h"
+#include "clang/Parse/Parser.h"
 #include <string>
 
 namespace clang {
@@ -59,7 +60,7 @@ class ParserHeavyScheme {
   ValueResult ParseSpecialEscapeSequence();
 
   heavy_scheme::Context getContext() {
-    return heavy_scheme::Context(CxxParser.getActions().getASTContext());
+    return heavy_scheme::Context(CxxParser);
   }
 
 public:

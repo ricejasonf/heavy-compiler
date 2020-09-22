@@ -31,6 +31,10 @@
 #include <string>
 #include <utility>
 
+namespace clang {
+class Parser;
+}
+
 namespace clang { namespace heavy_scheme {
 class Context;
 class Value;
@@ -50,7 +54,7 @@ class Value {
   friend class Context;
 public:
   enum class Kind {
-    Undefined,
+    Undefined = 0,
     Boolean,
     Char,
     CppDecl, // C++ decl name
@@ -62,10 +66,10 @@ public:
     String,
     Symbol,
     Typename, // C++ type
-    Vector
+    Vector,
+    Binding,
+    ModuleRegion
   };
-
-  ~Value() = delete;
 
 private:
   Kind ValueKind;
@@ -207,22 +211,20 @@ public:
 };
 
 class Procedure : public Value {
-  Pair* Body;
-  Value** Bindings;
+  Value* Body;
+  Value* Bindings;
   unsigned Arity;
-  unsigned NumBindings;
-
-  // The first set of Bindings should be the parameters
-  // initialized to Undefined. Arity is the length of this set.
 
 public:
-  Procedure(Pair* Body, Value** Bindings, unsigned NumBindings, unsigned Arity)
+  Procedure(Pair* Body, Value* Bindings, unsigned Arity)
     : Value(Kind::Procedure)
-    , Val(V)
+    , Body(Body)
+    , Bindings(Bindings)
+    , Arity(0)
   { }
 
-  Pair* getBody() { return Body; }
-  ArrayRef<Value*> getBindings() { return {Bindings, NumBindings}; }
+  Value* getBody() { return Body; }
+  Value* getBindings() { return Bindings; }
 
   static bool classof(Value const* V) { return V->getKind() == Kind::Procedure; }
 };
@@ -243,20 +245,18 @@ public:
 class Binding : public Value {
   friend class Context;
   // Binding is just a tagged list
-  // that stores a key/value and new location
-  // for use with garbage collection
   //
-  // Possible representations:
+  // Possible representation:
   // (symbol value)
-  // (symbol value . newloc)
   Pair* P;
 
   Binding(Pair* P)
-    : P(P)
+    : Value(Kind::Binding)
+    , P(P)
   { }
 public:
   Symbol* getName() {
-    return cast<Symbol>(P.Car);
+    return cast<Symbol>(P->Car);
   }
 
   ValueResult Lookup(Symbol* Name) {
@@ -276,6 +276,7 @@ class ModuleRegion : public Value {
   llvm::StringMap<Value*, AllocatorTy> Map;
 
   ModuleRegion(AllocatorTy A)
+    : Value(Kind::ModuleRegion)
     , Map(A)
   { }
 
@@ -313,15 +314,23 @@ class Context {
   AllocatorTy TrashHeap;
   Parser* CxxParser = nullptr;
 
-  bool ProcessFormals(Value* V, BindingRegion* Region, int& Arity);
-  bool AddBinding(BindingRegion* Region, Value* V);
-  BindingRegion* CreateRegion();
+  //bool ProcessFormals(Value* V, BindingRegion* Region, int& Arity);
+  //bool AddBinding(Pair* Region, Value* V);
+  //BindingRegion* CreateRegion();
 
 public:
 
   Context(Parser& P)
     : CxxParser(&P)
   { }
+
+  unsigned GetHostIntWidth() const;
+  unsigned GetIntWidth() const {
+    if (CxxParser) {
+      return GetHostIntWidth();
+    }
+    return sizeof(int) * 8; // ???
+  }
 
   Boolean* CreateBoolean(bool V) { return new (TrashHeap) Boolean(V); }
   Char* CreateChar(char V) { return new (TrashHeap) Char(V); }

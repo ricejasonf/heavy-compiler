@@ -1416,6 +1416,10 @@ def fno_pch_validate_input_files_content:
   Flag <["-"], "fno_pch-validate-input-files-content">,
   Group<f_Group>, Flags<[DriverOption]>;
 
+def fheavy : Flag <["-"], "fheavy">, Group<f_Group>,
+  Flags<[DriverOption, CC1Option]>,
+  HelpText<"Enable support for HeavyScheme compile-time scripting">;
+
 def fmodules : Flag <["-"], "fmodules">, Group<f_Group>,
   Flags<[DriverOption, CC1Option]>,
   HelpText<"Enable the 'modules' language feature">;

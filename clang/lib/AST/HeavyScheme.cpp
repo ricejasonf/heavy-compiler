@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/ASTContext.h"
+#include "clang/Parse/Parser.h"
 #include "clang/AST/HeavyScheme.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/APFloat.h"
@@ -27,11 +28,20 @@ using clang::dyn_cast;
 using clang::cast;
 using clang::isa;
 
+// called inside GetIntWidth
+unsigned Context::GetHostIntWidth() const {
+  assert(CxxParser);
+  return CxxParser->getActions()
+                   .getASTContext()
+                   .getTargetInfo()
+                   .getIntWidth();
+}
+
 String* Context::CreateString(StringRef V) {
   // TODO maybe use TrailingObjects for the string data??
 
   // Allocate and copy the string data
-  char* NewStrData = (char*) TrashHeap.Allocate(V.size());
+  char* NewStrData = (char*) TrashHeap.Allocate<char>(V.size());
   std::memcpy(NewStrData, V.data(), V.size());
 
   return new (TrashHeap) String(StringRef(NewStrData, V.size()));
@@ -45,6 +55,7 @@ Float* Context::CreateFloat(llvm::APFloat Val) {
   return new (TrashHeap) Float(Val);
 }
 
+#if 0 // TODO implement creating a Procedure
 bool Context::CheckFormals(Value* V, int& Arity) {
   if (isa<Empty>(V)) return;
   if (isa<Symbol>(V)) {
@@ -75,8 +86,9 @@ Procedure* Context::CreateProcedure(Pair* P) {
   ProcessFormals(Formals, Region, Arity);
 
   // The rest are expressions considered as the body
-  Procedure* New = new (TrashHeap) Procedure(???);
+  Procedure* New = new (TrashHeap) Procedure(/*stuff*/);
 }
+#endif
 
 namespace {
 template <typename AllocatorTy>
@@ -84,23 +96,22 @@ struct ModuleRegion {
   llvm::StringMap<Value*, AllocatorTy> Map;
 
   ModuleRegion(ModuleRegion* P,
-                AllocatorTy A)
-    , Map(A)
+               AllocatorTy A)
+    : Map(A)
   { }
 };
 
 class Evaluator : public ValueVisitor<Evaluator, ValueResult> {
   friend class ValueVisitor<Evaluator, ValueResult>;
   Context& Ctx;
-  ASTContext* CxxAst = nullptr;
-  BindingRegion* Region;
+  clang::ASTContext* CxxAst = nullptr;
 
 public:
   Evaluator(Context& C)
     : Ctx(C)
   { }
 
-  Evaluator(Context& C, ASTContext& A)
+  Evaluator(Context& C, clang::ASTContext& A)
     : Ctx(C)
     , CxxAst(&A)
   { }
@@ -128,14 +139,12 @@ private:
     return S;
   }
 
+#if 0
   // BindArguments
-  //    - TODO This does not appear to need to be a member of
-  //           Evaluator unless we simply bind to the current Region.
-  //    - TODO Implement AddBinding
   // Args should be a list of evaluated inputs
-  bool BindArguments(BindingRegion* Region,
-                     Pair* Args,
-                     Value* Formals) {
+  ValueResult BindArguments(Pair* Region,
+                            Pair* Args,
+                            Value* Formals) {
     Pair* P;
     switch (Formals.getValueKind()) {
     case Value::Empty: {
@@ -167,6 +176,11 @@ private:
     return BindArguments(Region, NextArgs, P->Cdr);
   }
 
+  void AddBinding(Pair* Region, Symbol* Name, Value* Arg) {
+    Binding* NewBinding = Ctx->CreateBinding(Name, Arg);
+    Region->Cdr = NewBinding;
+  }
+
   // Arguments are evaluated right to left
   // to prevent accidental reliance on unspecified
   // behaviour that may change for different "backends".
@@ -194,6 +208,7 @@ private:
     if (R.isUsable()) return R;
     return Module.Lookup(S);
   }
+#endif
 };
 
 class Writer : public ValueVisitor<Writer>

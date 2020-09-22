@@ -241,9 +241,7 @@ ValueResult ParserHeavyScheme::ParseCharConstant(){
 ValueResult ParserHeavyScheme::ParseNumber() {
   char const* Current = Tok.getLiteralData();
   char const* End = Current + Tok.getLength();
-  int BitWidth = getContext().getASTContext()
-                             .getTargetInfo()
-                             .getIntWidth();
+  int BitWidth = getContext().GetIntWidth();
   llvm::Optional<bool> IsExactOpt;
   llvm::Optional<unsigned> RadixOpt;
   llvm::Optional<llvm::APInt> IntOpt;
