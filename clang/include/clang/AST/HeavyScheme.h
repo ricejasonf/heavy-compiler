@@ -337,11 +337,9 @@ public:
   Pair*     CreatePair(Value* V1, Value* V2) { return new (TrashHeap) Pair(V1, V2); }
   String*   CreateString(StringRef V);
   Symbol*   CreateSymbol(StringRef V) { return new (TrashHeap) Symbol(V); }
+  Vector*   CreateVector(ArrayRef<Value*> Xs);
   Typename* CreateTypename(QualType QT) {
     return new (TrashHeap) Typename(QT);
-  }
-  Vector* CreateVector(ArrayRef<Value*> Vs) {
-    return new (TrashHeap) Vector(Vs);
   }
 
   String* CreateMutableString(StringRef V) {

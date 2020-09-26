@@ -16,6 +16,7 @@
 #include "clang/Parse/ParserHeavyScheme.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
+#include "llvm/ADT/Vector.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 using namespace clang;
@@ -148,6 +149,8 @@ ValueResult ParserHeavyScheme::ParseExpr() {
   switch (Tok.getKind()) {
   case tok::l_paren:
     return ParseListStart();
+  case tok::heavy_vector_lparen:
+    return ParseVectorStart();
   case tok::numeric_constant:
     return ParseNumber();
   case tok::kw_typename:
@@ -214,6 +217,25 @@ ValueResult ParserHeavyScheme::ParseDottedCdr() {
     return ValueError();
   }
   return Cdr;
+}
+
+ValueResult ParserHeavyScheme::ParseVectorStart() {
+  // consume the heavy_vector_lparen
+  ConsumeToken();
+  SmallVector<Value*, 16> Xs;
+  return ParseVector(Xs);
+}
+
+ValueResult ParserHeavyScheme::ParseVector(SmallVectorImpl<Value*>& Xs) {
+  if (Tok.is(tok::r_paren)) {
+    ConsumeToken();
+    return Ctx.CreateVector(Xs);
+  }
+  ValueResult Result = ParseExpr();
+  if (!Result.isUsable()) return ValueError();
+
+  Xs.push_back(Result.get());
+  return ParseVector(Xs);
 }
 
 ValueResult ParserHeavyScheme::ParseCharConstant(){
@@ -302,11 +324,6 @@ ValueResult ParserHeavyScheme::ParseSymbol(){
   StringRef Str = Tok.getRawIdentifier();
   ConsumeToken();
   return getContext().CreateSymbol(Str);
-}
-
-ValueResult ParserHeavyScheme::ParseVector(){
-  llvm_unreachable("TODO");
-  return ValueError();
 }
 
 ValueResult ParserHeavyScheme::ParseTypename(){

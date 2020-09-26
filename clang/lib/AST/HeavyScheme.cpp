@@ -38,8 +38,6 @@ unsigned Context::GetHostIntWidth() const {
 }
 
 String* Context::CreateString(StringRef V) {
-  // TODO maybe use TrailingObjects for the string data??
-
   // Allocate and copy the string data
   char* NewStrData = (char*) TrashHeap.Allocate<char>(V.size());
   std::memcpy(NewStrData, V.data(), V.size());
@@ -53,6 +51,12 @@ Integer* Context::CreateInteger(llvm::APInt Val) {
 
 Float* Context::CreateFloat(llvm::APFloat Val) {
   return new (TrashHeap) Float(Val);
+}
+
+Vector* Context::CreateVector(ArrayRef<Value*> const& Xs) {
+  // Copy the list of Value* to our heap
+  Value** Values = new (TrashHeap) Value*[Xs.size()];
+  return Vector(ArrayRef<Value*>(Values, Xs.size()));
 }
 
 #if 0 // TODO implement creating a Procedure
