@@ -59,17 +59,33 @@ class ParserHeavyScheme {
   ValueResult ParseDottedCdr();
   ValueResult ParseSpecialEscapeSequence();
 
-  heavy::Context getContext() {
-    return heavy::Context(CxxParser);
+  heavy::Context& getContext() {
+    return *(CxxParser.getActions()
+                      .getASTContext()
+                      .HeavySchemeContext);
+  }
+
+  void InitContext() {
+    auto& Cptr = CxxParser.getActions()
+                          .getASTContext()
+                          .HeavySchemeContext;
+    if (!Cptr) {
+      Cptr = std::make_unique<heavy::Context>();
+    }
+    Cptr->CxxParser = &CxxParser;
   }
 
 public:
   ParserHeavyScheme(Preprocessor& PP, Parser& P)
     : PP(PP)
     , CxxParser(P)
-  { }
+  {
+    // Give the scheme context access to the
+    // C++ parser
+    InitContext();
+  }
 
-  // Parses until the terminator token (ie heavy_end)
+  // Parses until the ending r_brace
   // and evaluates top level expressions.
   // Expects that the first token is heavy_scheme
   // Returns true if there was an error

@@ -309,20 +309,16 @@ public:
 
 class Context {
   using AllocatorTy = llvm::BumpPtrAllocator;
-  // TODO eventually we can make our own allocator
-  //      that has space for garbage collection
+  // TODO eventually we can make our own
+  //      allocator for garbage collection
   AllocatorTy TrashHeap;
-  Parser* CxxParser = nullptr;
 
   //bool ProcessFormals(Value* V, BindingRegion* Region, int& Arity);
   //bool AddBinding(Pair* Region, Value* V);
   //BindingRegion* CreateRegion();
 
 public:
-
-  Context(Parser& P)
-    : CxxParser(&P)
-  { }
+  Parser* CxxParser = nullptr;
 
   unsigned GetHostIntWidth() const;
   unsigned GetIntWidth() const {
@@ -332,15 +328,15 @@ public:
     return sizeof(int) * 8; // ???
   }
 
-  Boolean* CreateBoolean(bool V) { return new (TrashHeap) Boolean(V); }
-  Char* CreateChar(char V) { return new (TrashHeap) Char(V); }
-  CppDecl* CreateCppDecl(Decl* V) { return new (TrashHeap) CppDecl(V); }
-  Empty* CreateEmpty() { return new (TrashHeap) Empty(); }
-  Integer* CreateInteger(llvm::APInt V);
-  Float* CreateFloat(llvm::APFloat V);
-  Pair* CreatePair(Value* V1, Value* V2) { return new (TrashHeap) Pair(V1, V2); }
-  String* CreateString(StringRef V);
-  Symbol* CreateSymbol(StringRef V) { return new (TrashHeap) Symbol(V); }
+  Boolean*  CreateBoolean(bool V) { return new (TrashHeap) Boolean(V); }
+  Char*     CreateChar(char V) { return new (TrashHeap) Char(V); }
+  CppDecl*  CreateCppDecl(Decl* V) { return new (TrashHeap) CppDecl(V); }
+  Empty*    CreateEmpty() { return new (TrashHeap) Empty(); }
+  Integer*  CreateInteger(llvm::APInt V);
+  Float*    CreateFloat(llvm::APFloat V);
+  Pair*     CreatePair(Value* V1, Value* V2) { return new (TrashHeap) Pair(V1, V2); }
+  String*   CreateString(StringRef V);
+  Symbol*   CreateSymbol(StringRef V) { return new (TrashHeap) Symbol(V); }
   Typename* CreateTypename(QualType QT) {
     return new (TrashHeap) Typename(QT);
   }

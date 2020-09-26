@@ -163,6 +163,12 @@ struct TypeInfo {
       : Width(Width), Align(Align), AlignIsRequired(AlignIsRequired) {}
 };
 
+namespace heavy {
+
+class Context;
+
+} // namespace heavy
+
 /// Holds long-lived AST nodes (such as types and decls) that can be
 /// referred to throughout the semantic analysis of a file.
 class ASTContext : public RefCountedBase<ASTContext> {
@@ -3060,6 +3066,8 @@ public:
   };
 
   llvm::StringMap<SectionInfo> SectionInfos;
+
+  std::unique_ptr<heavy::Context> HeavySchemeContext;
 };
 
 /// Utility function for constructing a nullary selector.

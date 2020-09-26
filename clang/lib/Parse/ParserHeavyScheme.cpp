@@ -113,7 +113,7 @@ bool ParserHeavyScheme::Parse() {
     return true;
   }
 
-  heavy::Context Context = getContext();
+  heavy::Context& Context = getContext();
   ValueResult Result;
   while (true) {
     Result = ParseTopLevelExpr();
