@@ -18,6 +18,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -27,6 +28,7 @@ using namespace clang::heavy;
 using clang::dyn_cast;
 using clang::cast;
 using clang::isa;
+using llvm::ArrayRef;
 
 // called inside GetIntWidth
 unsigned Context::GetHostIntWidth() const {
@@ -53,10 +55,11 @@ Float* Context::CreateFloat(llvm::APFloat Val) {
   return new (TrashHeap) Float(Val);
 }
 
-Vector* Context::CreateVector(ArrayRef<Value*> const& Xs) {
+Vector* Context::CreateVector(ArrayRef<Value*> Xs) {
   // Copy the list of Value* to our heap
-  Value** Values = new (TrashHeap) Value*[Xs.size()];
-  return Vector(ArrayRef<Value*>(Values, Xs.size()));
+  Value** Values = TrashHeap.Allocate<Value*>(Xs.size());
+  std::copy(Xs.begin(), Xs.end(), Values);
+  return new (TrashHeap) Vector(ArrayRef<Value*>(Values, Xs.size()));
 }
 
 #if 0 // TODO implement creating a Procedure
@@ -281,6 +284,20 @@ private:
     }
     OS << ')';
     --IndentationLevel;
+  }
+
+  void VisitVector(Vector* Vec) {
+    OS << "#(";
+    ArrayRef<Value*> Xs = Vec->getElements();
+    if (!Xs.empty()) {
+      Visit(Xs[0]);
+      Xs = Xs.drop_front(1);
+      for (Value* X : Xs) {
+        OS << ' ';
+        Visit(X);
+      }
+    }
+    OS << ')';
   }
 
   void VisitSymbol(Symbol* S) {

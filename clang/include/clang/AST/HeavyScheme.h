@@ -238,7 +238,7 @@ public:
     , Vals(Vs)
   { }
 
-  ArrayRef<Value*> getInternal() { return Vals; }
+  ArrayRef<Value*> getElements() const { return Vals; }
   static bool classof(Value const* V) { return V->getKind() == Kind::Vector; }
 };
 

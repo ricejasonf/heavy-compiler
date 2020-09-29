@@ -24,6 +24,7 @@ class Parser;
 
 class ParserHeavyScheme {
   using ValueResult = heavy::ValueResult;
+  using Value = heavy::Value;
   Preprocessor& PP;
   Parser& CxxParser;
   Token Tok = {};
@@ -54,7 +55,8 @@ class ParserHeavyScheme {
   ValueResult ParseString();
   ValueResult ParseSymbol();
   ValueResult ParseTypename();
-  ValueResult ParseVector();
+  ValueResult ParseVectorStart();
+  ValueResult ParseVector(SmallVectorImpl<Value*>& Xs);
 
   ValueResult ParseDottedCdr();
   ValueResult ParseSpecialEscapeSequence();

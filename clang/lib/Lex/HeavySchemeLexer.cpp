@@ -204,7 +204,7 @@ void HeavySchemeLexer::LexNumberOrIdentifier(Token& Tok, const char *CurPtr) {
 void HeavySchemeLexer::LexNumberOrEllipsis(Token& Tok, const char *CurPtr) {
   const char *OrigPtr = CurPtr;
   // We already consumed a dot .
-  char c1 = ConsumeChar(CurPtr);
+  char c1 = *CurPtr;
   char c2 = ConsumeChar(CurPtr);
   char c3 = ConsumeChar(CurPtr);
   if (c1 == '.' && c2 ==  '.' && isDelimiter(c3)) {
@@ -224,8 +224,8 @@ void HeavySchemeLexer::LexNumber(Token& Tok, const char *CurPtr) {
 // These could be numbers, character constants, or other literals
 // such as #t #f for true and false
 void HeavySchemeLexer::LexSharpLiteral(Token& Tok, const char *CurPtr) {
-  assert(*CurPtr == '#');
-  char c = ConsumeChar(CurPtr);
+  // We already consumed the #
+  char c = *CurPtr++;
   // If we expect the token to end after
   // `c` then we set RequiresDelimiter
   bool RequiresDelimiter = false;

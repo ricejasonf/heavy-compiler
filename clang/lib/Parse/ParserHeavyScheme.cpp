@@ -16,7 +16,7 @@
 #include "clang/Parse/ParserHeavyScheme.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
-#include "llvm/ADT/Vector.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 using namespace clang;
@@ -166,7 +166,7 @@ ValueResult ParserHeavyScheme::ParseExpr() {
   case tok::string_literal:
     return ParseString();
   default:
-    // TODO emit error unexpected token
+    CxxParser.Diag(Tok, diag::err_expected_expression);
     return ValueError();
   }
 }
@@ -229,7 +229,7 @@ ValueResult ParserHeavyScheme::ParseVectorStart() {
 ValueResult ParserHeavyScheme::ParseVector(SmallVectorImpl<Value*>& Xs) {
   if (Tok.is(tok::r_paren)) {
     ConsumeToken();
-    return Ctx.CreateVector(Xs);
+    return getContext().CreateVector(Xs);
   }
   ValueResult Result = ParseExpr();
   if (!Result.isUsable()) return ValueError();
