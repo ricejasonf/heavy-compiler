@@ -30,6 +30,13 @@ using clang::cast;
 using clang::isa;
 using llvm::ArrayRef;
 
+std::unique_ptr<Context> Context::CreateEmbedded(clang::Parser& P) {
+  auto Cptr = std::make_unique<Context>();
+  Cptr->CxxParser = &P;
+  Cptr->InitTopLevel();
+  return Cptr;
+}
+
 // called inside GetIntWidth
 unsigned Context::GetHostIntWidth() const {
   assert(CxxParser);

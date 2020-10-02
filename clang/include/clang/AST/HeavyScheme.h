@@ -36,6 +36,7 @@ class Parser;
 }
 
 namespace clang { namespace heavy {
+using AllocatorTy = llvm::BumpPtrAllocator;
 class Context;
 class Value;
 using ValueResult = ActionResult<Value*>;
@@ -68,7 +69,7 @@ public:
     Typename, // C++ type
     Vector,
     Binding,
-    ModuleRegion
+    Module
   };
 
 private:
@@ -267,22 +268,19 @@ public:
   }
 };
 
-template <typename AllocatorTy>
-class ModuleRegion : public Value {
+class Module : public Value {
   friend class Context;
 
-  // TODO maybe allow specifying a prefix
-  //      for lookup
-  llvm::StringMap<Value*, AllocatorTy> Map;
+  llvm::StringMap<Value*, AllocatorTy&> Map;
 
-  ModuleRegion(AllocatorTy A)
-    : Value(Kind::ModuleRegion)
+  Module(AllocatorTy& A)
+    : Value(Kind::Module)
     , Map(A)
   { }
 
 public:
   ValueResult Lookup(Symbol* Name);
-  static bool classof(Value const* V) { return V->getKind() == Kind::ModuleRegion; }
+  static bool classof(Value const* V) { return V->getKind() == Kind::Module; }
 };
 
 
@@ -308,9 +306,6 @@ public:
 };
 
 class Context {
-  using AllocatorTy = llvm::BumpPtrAllocator;
-  // TODO eventually we can make our own
-  //      allocator for garbage collection
   AllocatorTy TrashHeap;
 
   //bool ProcessFormals(Value* V, BindingRegion* Region, int& Arity);
@@ -318,7 +313,20 @@ class Context {
   //BindingRegion* CreateRegion();
 
 public:
+  static std::unique_ptr<Context> CreateEmbedded(Parser& P);
+
   Parser* CxxParser = nullptr;
+  Module* TopLevelModule;
+
+  Context()
+    : TrashHeap()
+    //, TopLevelModule(CreateModule())
+  { }
+
+  void InitTopLevel() {
+    // TODO
+    // load the core forms into TopLevelModule
+  }
 
   unsigned GetHostIntWidth() const;
   unsigned GetIntWidth() const {
@@ -354,7 +362,7 @@ public:
     return New;
   }
 
-  Binding* CreateModuleRegion(Symbol* S, Value*);
+  Module*  CreateModule();
   Binding* CreateBinding(Symbol* S, Value*);
 };
 

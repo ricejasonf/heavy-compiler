@@ -13,7 +13,7 @@
 
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/ParserHeavyScheme.h"
-#include "clang/AST/ASTContext.h"
+#include "clang/AST/HeavyScheme.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/Basic/CharInfo.h"
@@ -27,7 +27,11 @@
 using namespace clang;
 
 bool Parser::ParseHeavyScheme() {
-  ParserHeavyScheme P(PP, *this);
+  if (!HeavySchemeContext) {
+    HeavySchemeContext = heavy::Context::CreateEmbedded(*this);
+  }
+
+  ParserHeavyScheme P(PP, *HeavySchemeContext, *this);
   bool Result = P.Parse();
   // The Lexers position has been changed
   // so we need to re-prime the look-ahead

@@ -26,6 +26,7 @@ class ParserHeavyScheme {
   using ValueResult = heavy::ValueResult;
   using Value = heavy::Value;
   Preprocessor& PP;
+  heavy::Context& Context;
   Parser& CxxParser;
   Token Tok = {};
   SourceLocation PrevTokLocation;
@@ -61,30 +62,14 @@ class ParserHeavyScheme {
   ValueResult ParseDottedCdr();
   ValueResult ParseSpecialEscapeSequence();
 
-  heavy::Context& getContext() {
-    return *(CxxParser.getActions()
-                      .getASTContext()
-                      .HeavySchemeContext);
-  }
-
-  void InitContext() {
-    auto& Cptr = CxxParser.getActions()
-                          .getASTContext()
-                          .HeavySchemeContext;
-    if (!Cptr) {
-      Cptr = std::make_unique<heavy::Context>();
-    }
-    Cptr->CxxParser = &CxxParser;
-  }
-
 public:
-  ParserHeavyScheme(Preprocessor& PP, Parser& P)
+  ParserHeavyScheme(Preprocessor& PP, heavy::Context& C, Parser& P)
     : PP(PP)
+    , Context(C)
     , CxxParser(P)
   {
     // Give the scheme context access to the
     // C++ parser
-    InitContext();
   }
 
   // Parses until the ending r_brace

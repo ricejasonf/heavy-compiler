@@ -114,7 +114,6 @@ bool ParserHeavyScheme::Parse() {
     return true;
   }
 
-  heavy::Context& Context = getContext();
   ValueResult Result;
   while (true) {
     Result = ParseTopLevelExpr();
@@ -160,9 +159,9 @@ ValueResult ParserHeavyScheme::ParseExpr() {
   case tok::char_constant:
     return ParseCharConstant();
   case tok::heavy_true:
-    return getContext().CreateBoolean(true);
+    return Context.CreateBoolean(true);
   case tok::heavy_false:
-    return getContext().CreateBoolean(false);
+    return Context.CreateBoolean(false);
   case tok::string_literal:
     return ParseString();
   default:
@@ -181,7 +180,7 @@ ValueResult ParserHeavyScheme::ParseListStart() {
 ValueResult ParserHeavyScheme::ParseList() {
   if (Tok.is(tok::r_paren)) {
     ConsumeToken();
-    return getContext().CreateEmpty();
+    return Context.CreateEmpty();
   }
 
   ValueResult Car = ParseExpr();
@@ -200,7 +199,7 @@ ValueResult ParserHeavyScheme::ParseList() {
     return ValueError();
   }
 
-  return getContext().CreatePair(Car.get(),
+  return Context.CreatePair(Car.get(),
                                  Cdr.get());
 }
 
@@ -229,7 +228,7 @@ ValueResult ParserHeavyScheme::ParseVectorStart() {
 ValueResult ParserHeavyScheme::ParseVector(SmallVectorImpl<Value*>& Xs) {
   if (Tok.is(tok::r_paren)) {
     ConsumeToken();
-    return getContext().CreateVector(Xs);
+    return Context.CreateVector(Xs);
   }
   ValueResult Result = ParseExpr();
   if (!Result.isUsable()) return ValueError();
@@ -245,7 +244,7 @@ ValueResult ParserHeavyScheme::ParseCharConstant(){
 ValueResult ParserHeavyScheme::ParseNumber() {
   char const* Current = Tok.getLiteralData();
   char const* End = Current + Tok.getLength();
-  int BitWidth = getContext().GetIntWidth();
+  int BitWidth = Context.GetIntWidth();
   llvm::Optional<bool> IsExactOpt;
   llvm::Optional<unsigned> RadixOpt;
   llvm::Optional<llvm::APInt> IntOpt;
@@ -264,7 +263,7 @@ ValueResult ParserHeavyScheme::ParseNumber() {
   ConsumeToken();
 
   if (IsExact && IntOpt.hasValue()) {
-    return getContext().CreateInteger(IntOpt.getValue());
+    return Context.CreateInteger(IntOpt.getValue());
   }
 
   llvm::APFloat FloatVal(0.0f);
@@ -280,7 +279,7 @@ ValueResult ParserHeavyScheme::ParseNumber() {
       return ValueError();
     }
   }
-  return getContext().CreateFloat(FloatVal);
+  return Context.CreateFloat(FloatVal);
 }
 
 ValueResult ParserHeavyScheme::ParseString() {
@@ -317,13 +316,13 @@ ValueResult ParserHeavyScheme::ParseString() {
     ++Current;
   }
   ConsumeToken();
-  return getContext().CreateString(StringRef(LiteralResult));
+  return Context.CreateString(StringRef(LiteralResult));
 }
 
 ValueResult ParserHeavyScheme::ParseSymbol(){
   StringRef Str = Tok.getRawIdentifier();
   ConsumeToken();
-  return getContext().CreateSymbol(Str);
+  return Context.CreateSymbol(Str);
 }
 
 ValueResult ParserHeavyScheme::ParseTypename(){
