@@ -40,6 +40,8 @@ using AllocatorTy = llvm::BumpPtrAllocator;
 class Context;
 class Value;
 using ValueResult = ActionResult<Value*>;
+// All builtins should receive a list as args
+using ValueFn = (*)(Context&, int NumArgs);
 inline auto ValueError() { return ValueResult(true); }
 inline auto ValueEmpty() { return ValueResult(false); }
 
@@ -47,7 +49,7 @@ inline auto ValueEmpty() { return ValueResult(false); }
 // may be invalidated on a call to garbage
 // collection if it is not bound to a variable
 // at top level scope
-ValueResult eval(Context&, Value*);
+ValueResult eval(Context&, Value* V);
 void write(raw_ostream&, Value*);
 
 // Value - A result of an evaluation
@@ -56,20 +58,25 @@ class Value {
 public:
   enum class Kind {
     Undefined = 0,
+    Binding,
     Boolean,
+    Builtin,
+    BuiltinSyntax,
     Char,
     CppDecl, // C++ decl name
     Empty,
-    Integer,
+    Error,
+    Exception,
     Float,
+    Integer,
+    Module
     Pair,
     Procedure,
     String,
     Symbol,
+    Syntax,
     Typename, // C++ type
     Vector,
-    Binding,
-    Module
   };
 
 private:
@@ -107,6 +114,27 @@ public:
   static bool classof(Value const* V) { return V->getKind() == Kind::Empty; }
 };
 
+class Error: public Value {
+public:
+  Value* Message;
+  Value* Irritants;
+
+  Error(Value* Message, Value* I)
+    : Value(Kind::Error)
+    , Message(M)
+    , Irritants(I)
+  { }
+};
+
+class Exception: public Value {
+public:
+  Value* Val;
+  Exception(Value* Val)
+    : Value(Kind::Exception)
+    , Val(Val)
+  { }
+}
+
 class Boolean : public Value {
   bool Val;
 public:
@@ -125,17 +153,37 @@ protected:
   Number(Kind K)
     : Value(K)
   { }
-public:
 
-  // maybe arithmetic functions go here?
+public:
   static bool classof(Value const* V) {
     return V->getKind() == Kind::Integer ||
            V->getKind() == Kind::Float;
   }
+
+  static Value::Kind CommonKind(Number* X, Number* Y) {
+    if (isa<Float>(X) || isa<Float>(Y)) {
+      return Value::Kind::Float;
+    }
+    return Value::Kind::Integer;
+  }
+
+  bool isExact() {
+    return V->getKind = Kind::Integer;
+  }
+
+  bool isExactZero() {
+    if (V->getKind = Kind::Integer) {
+      return cast<Integer>(this)->Val == 0;
+    }
+    return false;
+  }
 };
 
 class Integer : public Number {
+  friend class Number;
+  friend class NumberOp;
   llvm::APInt Val;
+
 public:
   Integer(llvm::APInt V)
     : Number(Kind::Integer)
@@ -143,10 +191,19 @@ public:
   { }
 
   auto getVal() { return Val; }
-  static bool classof(Value const* V) { return V->getKind() == Kind::Integer; }
+
+  static bool classof(Value const* V) {
+    return V->getKind() == Kind::Integer;
+  }
+
+  static void Add(Integer* X, Integer* Y) { X.Val += Y.Val; }
+  static void Sub(Integer* X, Integer* Y) { X.Val -= Y.Val; }
+  static void Mul(Integer* X, Integer* Y) { X.Val *= Y.Val; }
+  static void Div(Integer* X, Integer* Y) { X.Val /= Y.Val; }
 };
 
 class Float : public Number {
+  friend class NumberOp;
   llvm::APFloat Val;
 
 public:
@@ -154,6 +211,8 @@ public:
     : Number(Kind::Float)
     , Val(V)
   { }
+
+  void Add(Float* X)   { Val += X.getVal(); }
 
   auto getVal() { return Val; }
   static bool classof(Value const* V) { return V->getKind() == Kind::Float; }
@@ -170,6 +229,10 @@ public:
 
   auto getVal() { return Val; }
   static bool classof(Value const* V) { return V->getKind() == Kind::Char; }
+
+  static void Add(Float* X, Float* Y) {
+    X.Val += Y.Val;
+  }
 };
 
 class Symbol : public Value {
@@ -211,6 +274,24 @@ public:
   { }
 };
 
+class Builtin : public Value {
+public:
+  ValueFn Fn;
+
+  static bool classof(Value const* V) {
+    return V->getKind() == Kind::Builtin;
+  }
+};
+
+class BuiltinSyntax : public Value {
+public:
+  ValueFn Fn;
+
+  static bool classof(Value const* V) {
+    return V->getKind() == Kind::BuiltinSyntax;
+  }
+};
+
 class Procedure : public Value {
   Value* Body;
   Value* Bindings;
@@ -227,8 +308,17 @@ public:
   Value* getBody() { return Body; }
   Value* getBindings() { return Bindings; }
 
-  static bool classof(Value const* V) { return V->getKind() == Kind::Procedure; }
+  static bool classof(Value const* V) {
+    return V->getKind() == Kind::Procedure;
+  }
 };
+
+class Syntax : public Value {
+public:
+  // TODO ???
+  Value* Transformer;
+  static bool classof(Value const* V) { return V->getKind() == Kind::Syntax; }
+}
 
 class Vector : public Value {
   ArrayRef<Value*> Vals;
@@ -271,6 +361,9 @@ public:
 class Module : public Value {
   friend class Context;
 
+  // TODO An IdentifierTable would probably be
+  //      better than using the strings themselves
+  //      as keys.
   llvm::StringMap<Value*, AllocatorTy&> Map;
 
   Module(AllocatorTy& A)
@@ -280,9 +373,17 @@ class Module : public Value {
 
 public:
   ValueResult Lookup(Symbol* Name);
+  Binding* Insert(Context& C, Symbol* Name, Value* Val);
+
+  Binding* AddBuiltin(Context& C, StringRef str, ValueFn Fn) {
+    return Insert(C, C.CreateSymbol(str), C.CreateBuiltin(Fn));
+  }
+  Binding* AddBuiltinSyntax(Context& C, StringRef str, ValueFn Fn) {
+    return Insert(C, C.CreateSymbol(str), C.CreateBuiltinSyntax(Fn));
+  }
+
   static bool classof(Value const* V) { return V->getKind() == Kind::Module; }
 };
-
 
 class CppDecl : public Value {
   Decl* Val;
@@ -305,28 +406,67 @@ public:
   static bool classof(Value const* V) { return V->getKind() == Kind::Typename; }
 };
 
+class EvaluationStack {
+  std::vector<Value*> Storage;
+public:
+  EvaluationStack(std::size_t Size = 1024)
+   : Storage(1, nullptr)
+  {
+    Storage.reserve(Size);
+  }
+
+  void push(Value* V) {
+    Storage.push_back(V)
+  }
+
+  Value* pop() {
+    Value* Back = Storage.back();
+    Storage.pop_back();
+    return Back;
+  }
+
+  void discard(int N = 1) {
+    for (int i = 0; i < N; ++i) pop();
+  }
+
+  Value* top() {
+    return Storage.back();
+  }
+};
+
 class Context {
   AllocatorTy TrashHeap;
 
+  EvaluationStack EvalStack;
+  // EnvStack
+  //  - Should be at least one element on top of
+  //    SystemModule
+  //  - Calls to eval will set the EnvStack
+  //    and swap it back upon completion (via RAII)
+  Module* SystemModule;
+  Value* EnvStack;
+  Value* ErrorHandlerStack;
+  Value* Error = nullptr;
+
   //bool ProcessFormals(Value* V, BindingRegion* Region, int& Arity);
   //bool AddBinding(Pair* Region, Value* V);
-  //BindingRegion* CreateRegion();
 
+  Binding* AddBuiltin(StringRef Str, ValueFn Fn) {
+    SystemModule.AddBuiltin(&this, SystemModule, Str, Fn);
+  }
+
+  Binding* AddBuiltinSyntax(StringRef Str, ValueFn Fn) {
+    SystemModule.AddBuiltinSyntax(&this, SystemModule, Str, Fn);
+  }
 public:
   static std::unique_ptr<Context> CreateEmbedded(Parser& P);
 
   Parser* CxxParser = nullptr;
-  Module* TopLevelModule;
 
-  Context()
-    : TrashHeap()
-    //, TopLevelModule(CreateModule())
-  { }
+  Context();
 
-  void InitTopLevel() {
-    // TODO
-    // load the core forms into TopLevelModule
-  }
+  void Init() { } // TODO Remove
+  Module* LoadSystemModule();
 
   unsigned GetHostIntWidth() const;
   unsigned GetIntWidth() const {
@@ -336,6 +476,33 @@ public:
     return sizeof(int) * 8; // ???
   }
 
+  // Check Error
+  //  - Returns true if there is an error or exception
+  //  - Builtins will have to check this to stop evaluation
+  //    when errors occur
+  bool CheckError() {
+    return Error ? true : false;
+  }
+
+  void SetError(Value* E) {
+    assert(isa<Error>(E) || isa<Exception>(E));
+    Error = E;
+  }
+
+  void SetError(StringRef S, Value* V) {
+    SetError(CreateError(S, CreatePair(V)))
+  }
+
+  template <typename T>
+  T* popArg() {
+    T* V = dyn_cast<T>(EvalStack.pop());
+    if (V == nullptr) {
+      SetError(CreateString("Contract violation: ???"), CreateEmpty());
+    }
+
+    return V;
+  }
+
   Boolean*  CreateBoolean(bool V) { return new (TrashHeap) Boolean(V); }
   Char*     CreateChar(char V) { return new (TrashHeap) Char(V); }
   CppDecl*  CreateCppDecl(Decl* V) { return new (TrashHeap) CppDecl(V); }
@@ -343,6 +510,7 @@ public:
   Integer*  CreateInteger(llvm::APInt V);
   Float*    CreateFloat(llvm::APFloat V);
   Pair*     CreatePair(Value* V1, Value* V2) { return new (TrashHeap) Pair(V1, V2); }
+  Pair*     CreatePair(Value* V1) { return new (TrashHeap) Pair(V1, CreateEmpty()); }
   String*   CreateString(StringRef V);
   Symbol*   CreateSymbol(StringRef V) { return new (TrashHeap) Symbol(V); }
   Vector*   CreateVector(ArrayRef<Value*> Xs);
@@ -360,6 +528,25 @@ public:
     Vector* New = CreateVector(Vs);
     New->IsMutable = true;
     return New;
+  }
+
+  Builtin* CreateBuiltin(ValueFn Fn) {
+    return new (TrashHeap) Builtin(Fn);
+  }
+  BuiltinSyntax* CreateBuiltinSyntax(ValueFn Fn) {
+    return new (TrashHeap) BuiltinSyntax(Fn);
+  }
+
+  Error* CreateError(Value* Message, Pair* Irritants) {
+    return new (TrashHeap) Error(Message, Irritants);
+  }
+
+  Error* CreateError(StringRef S, Pair* P) {
+    return CreateError(CreateString(S), P);
+  }
+
+  Exception* CreateException(Value* V) {
+    return new (TrashHeap) Exception(V);
   }
 
   Module*  CreateModule();

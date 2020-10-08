@@ -37,6 +37,19 @@ std::unique_ptr<Context> Context::CreateEmbedded(clang::Parser& P) {
   return Cptr;
 }
 
+Context::Context()
+  : TrashHeap()
+  , EvalStack()
+  , SystemModule(LoadSystemModule())
+  , EnvStack(CreatePair(SystemModule, CreateEmpty()))
+  , ErrorHandlerStack(CreateEmpty())
+{ }
+
+Context::LoadSystemModule() {
+  SystemModule = CreateModule();
+  AddBuiltin("+", builtins::add);
+}
+
 // called inside GetIntWidth
 unsigned Context::GetHostIntWidth() const {
   assert(CxxParser);
@@ -105,57 +118,102 @@ Procedure* Context::CreateProcedure(Pair* P) {
 #endif
 
 namespace {
-template <typename AllocatorTy>
-struct ModuleRegion {
-  llvm::StringMap<Value*, AllocatorTy> Map;
-
-  ModuleRegion(ModuleRegion* P,
-               AllocatorTy A)
-    : Map(A)
-  { }
-};
-
-class Evaluator : public ValueVisitor<Evaluator, ValueResult> {
-  friend class ValueVisitor<Evaluator, ValueResult>;
-  Context& Ctx;
+// Evaluator
+//  - expands syntax
+//  - pushes to the evaluation stack
+//  - to work with builtins and bytecode
+//  - uses RAII to replace the Context.EnvStack
+class Evaluator : public ValueVisitor<Evaluator> {
+  friend class ValueVisitor<Evaluator>;
+  clang::heavy::Context& Context;
+  // We use RAII to make the current call to `eval`
+  // set the environment in Context
+  Value* OldEnvStack;
   clang::ASTContext* CxxAst = nullptr;
 
 public:
-  Evaluator(Context& C)
+  Evaluator(Context& C, Pair* Env) // TODO make Env an `Environment`
     : Ctx(C)
-  { }
+  {
+    OldEnvStack = Context.EnvStack;
+    Context.EnvStack = Env;
+  }
 
-  Evaluator(Context& C, clang::ASTContext& A)
-    : Ctx(C)
-    , CxxAst(&A)
-  { }
+  ~Evaluator() {
+    Context.EnvStack = OldEnvStack;
+  }
 
 private:
+  void push(Value* V) {
+    Context.EvalStack.push();
+  }
+  Value* pop() {
+    return Context.EvalStack.pop();
+  }
+  Value* top() {
+  }
+
   // Most objects simply evaluate to themselves
-  ValueResult VisitValue(Value* V) {
-    return V;
+  void VisitValue(Value* V) {
+    push(V);
   }
 
-  ValueResult VisitPair(Pair* P) {
-    // TODO this would evaluate as a call expression
-    // with the operator and all of the operands being
-    // evaluated
-    // If this is a quoted list then the result is the cdr
-
-    // Acting on special keywords like `define` that
-    // effect the environment would start here
-    return P;
+  void VisitPair(Pair* P) {
+    // Visit each element in reverse order and evaluate
+    // on the stack.
+    int Len = 0;
+    EvalArguments(P, Len);
+    
+    // The Car is the operator of a call expression
+    Value* Operator = pop();
+    switch (Operator) {
+      case Value::Procedure:
+        llvm_unreachable("TODO");
+        break;
+      case Value::Syntax:
+        llvm_unreachable("TODO");
+        break;
+      case Value::Builtin:
+        Builtin* B = cast<Builtin>(Operator);
+        B->Fn(Context, Len);
+        break;
+      case Value::BuiltinSyntax:
+        // I think this will be just like a builtin function
+        // with pointers to unevaluated AST as operands on the
+        // call stack (do we even need to use the call stack?)
+        llvm_unreachable("TODO");
+        break;
+      default:
+        llvm::errs() << "Expression is not a function\n";
+        break;
+    }
   }
 
-  ValueResult VisitSymbol(Symbol* S) {
-    // TODO Perform lookup and return the bound value.
-    //      If nothing is found, it is an error
-    return S;
+  void EvalArguments(Value* Args, int& Len) {
+    if (isa<Empty>(Args)) return;
+    Pair* P = dyn_cast<Pair>(Args);
+    if (!P) {
+      llvm::errs() <<
+        "\nTODO Diagnose invalid syntax for call expression\n";
+      return ValueError();
+    }
+    EvalArguments(P->Cdr, Len);
+    Len += 1;
+    Visit(P->Car);
   }
 
+  Value* VisitSymbol(Symbol* S) {
+    Binding* Result = dyn_cast_or_null<Binding>(Context.Lookup(S));
+    if (!Result) {
+      llvm::errs() << "Unbound symbol: " << S.getVal() << '\n';
+      // erm uhh
+    }
+    push(Result.getValue());
+  }
 #if 0
   // BindArguments
   // Args should be a list of evaluated inputs
+  // TODO rewrite this to create an EnvFrame
   ValueResult BindArguments(Pair* Region,
                             Pair* Args,
                             Value* Formals) {
@@ -188,39 +246,6 @@ private:
     }
 
     return BindArguments(Region, NextArgs, P->Cdr);
-  }
-
-  void AddBinding(Pair* Region, Symbol* Name, Value* Arg) {
-    Binding* NewBinding = Ctx->CreateBinding(Name, Arg);
-    Region->Cdr = NewBinding;
-  }
-
-  // Arguments are evaluated right to left
-  // to prevent accidental reliance on unspecified
-  // behaviour that may change for different "backends".
-  ValueResult EvalArguments(Value* Args) {
-    if (isa<Empty>(Args)) return Args;
-    Pair* P = dyn_cast<Pair>(Args);
-    if (!P) {
-      llvm::errs() <<
-        "\nTODO Diagnose invalid syntax for call expression\n";
-      return ValueError();
-    }
-    ValueResult RestResult = EvalArgs(P->Cdr);
-    if (!RestResult.isUsable()) return ValueError();
-    ValueResult ArgResult = Visit(P->Car);
-    if (!RestResult.isUsable()) return ValueError();
-    return Ctx.CreatePair(ArgResult.get(), RestResult.get());
-  }
-
-  // LookupSymbol - Uses the current Region to start
-  //                searching for a symbol, defaulting to
-  //                searching the module environment and then
-  //                the top level environment
-  ValueResult LookupSymbol(Symbol* S) {
-    ValueResult R = Region.Lookup(S);
-    if (R.isUsable()) return R;
-    return Module.Lookup(S);
   }
 #endif
 };
@@ -319,15 +344,115 @@ private:
 };
 
 } // end anon namespace
+namespace clang { namespace heavy {
+struct NumberOp {
+  // These operations always mutate the first operand
+  struct Add {
+    static void f(Integer* X, Integer* Y) { X.Val += Y.Val; }
+    static void f(Float* X, Float *Y) { X.Val = X.Val + Y.Val; }
+  };
+  struct Sub {
+    static void f(Integer* X, Integer* Y) { X.Val -= Y.Val; }
+    static void f(Float* X, Float *Y) { X.Val = X.Val - Y.Val; }
+  };
+  struct Mul {
+    static void f(Integer* X, Integer* Y) { X.Val *= Y.Val; }
+    static void f(Float* X, Float *Y) { X.Val = X.Val * Y.Val; }
+  };
+  struct Div {
+    static void f(Integer* X, Integer* Y) { X.Val.sdiv(Y.Val); }
+    static void f(Float* X, Float *Y) { X.Val = X.Val / Y.Val; }
+  };
+};
+}} // end namespace clang::heavy
+
+namespace clang { namespace heavy { namespace builtin {
+void eval(Context& C, int Len) {
+  if (C.CheckArityAtLeast(1, Len)) return;
+  Value* ExprOrDef = C.popArg<>();
+  Pair* EnvStack = (Len == 1) ? C.popArg<Pair>() : C.EnvStack;
+  // TODO Environment should be the result of evaluating an `environment` spec
+  //Environment* EnvStack = (Len == 1) ? C.pop<EnvironmentStack>() : C.EnvStack;
+  if (C.CheckError()) return;
+  Evaluator Eval(C, EnvStack);
+  Eval.Visit(V);
+}
+
+template <typename Op>
+void operator_rec(Context& C, int Len) {
+  if (Len == 1) return;
+  if (Len == 0) {
+    C.EvalStack.push(C.CreateInteger(0));
+    return;
+  }
+  // pop two arguments and push the result of adding them
+  Number* X = C.popArg<Number>();
+  Number* Y = C.popArg<Number>();
+  if (C.CheckError()) return;
+  Value::Kind CommonKind = Number::CommonKind(Sum, X);
+  Number* Result;
+  switch (CommonKind) {
+    case Value::Kind::Float: {
+      Float* CopyX = C.CreateFloat(X);
+      Float* CopyY = C.CreateFloat(Y);
+      Op::f(CopyX, CopyY);
+      Result = CopyX;
+      break;
+    }
+    case Value::Kind::Integer: {
+      // we can assume they are both integers
+      Integer* CopyX = C.CreateInteger(cast<Integer>(X).getVal());
+      Op::f(CopyX, Y);
+      Result = CopyX;
+      break;
+    }
+    default:
+      llvm_unreachable("Invalid arithmetic type");
+  }
+  C.EvalStack.push(Result);
+  operator_rec<Op>(C, Len - 1);
+}
+
+void forbid_div_zeros(Context&C, int Len) {
+  Number* Num = C.popArg<Number>();
+  if (Num->isExactZero()) {
+    C.SetError("Divide by exact zero", Num);
+    return;
+  }
+
+  forbid_div_zeros(C, Len - 1);
+  // put the value back on the stack
+  C.EvalContext.push(Num);
+}
+
+void operator_div(Context& C, int Len) {
+  Number* Num = C.popArg<Number>();
+  if (CheckError()) return;
+  if (Num->isExactZero()) {
+    C.EvalStack.discard(Len - 1)
+    C.EvalStack.push(Num);
+    return;  
+  }
+  forbid_div_zeros(C, Len);
+  if (CheckError()) return;
+  // put the value back on the stack
+  C.EvalContext.push(Num);
+  operator_rec<NumberOp::Div>(C, Len);
+}
+
+}} // end of namespace clang::heavy::builtin
 
 namespace clang { namespace heavy {
-ValueResult eval(Context& C, Value* V) {
-  Evaluator Eval(C);
-  return Eval.Visit(V);
-}
+  // This is just a temporary interface for printing
+  // top level expressions
+  Value* eval(Context& C, Value* V) {
+    C.EvalStack.push(V);
+    builtin::eval(C, 1);
+    return C.EvalStack.pop();
+  }
 
-void write(llvm::raw_ostream& OS, Value* V) {
-  Writer W(OS);
-  return W.Visit(V);
-}
-}} // end of namespace clang::heavy
+  void write(llvm::raw_ostream& OS, Value* V) {
+    Writer W(OS);
+    return W.Visit(V);
+  }
+}} // end namespace clang::heavy
