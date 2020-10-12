@@ -41,14 +41,9 @@ Context::Context()
   : TrashHeap()
   , EvalStack()
   , SystemModule(LoadSystemModule())
-  , EnvStack(CreatePair(SystemModule, CreateEmpty()))
+  , EnvStack(CreatePair(CreateEnvironment()))
   , ErrorHandlerStack(CreateEmpty())
 { }
-
-Context::LoadSystemModule() {
-  SystemModule = CreateModule();
-  AddBuiltin("+", builtins::add);
-}
 
 // called inside GetIntWidth
 unsigned Context::GetHostIntWidth() const {
@@ -116,6 +111,35 @@ Procedure* Context::CreateProcedure(Pair* P) {
   Procedure* New = new (TrashHeap) Procedure(/*stuff*/);
 }
 #endif
+
+Binding* Context::Lookup(Symbol* Name, Value* Stack) {
+  if (isa<Empty>(Stack)) return nullptr;
+  Value* Result = nullptr;
+  Value* V    = cast<Pair>(Stack)->Car;
+  Value* Next = cast<Pair>(Stack)->Cdr;
+  switch (V->getValueKind()) {
+#if 0
+    case Value::Kind::EnvFrame:
+      Result = cast<EnvFrame>(V)->Lookup(Name);
+      break;
+#endif
+    case Value::Kind::Module:
+      Result = cast<Module>(V)->Lookup(Name);
+      break;
+    case Value::Kind::Environment:
+      Next = cast<Environment>(V).EnvStack;
+      break;
+    default:
+      llvm_unreachable("Invalid Lookup Type");
+  }
+  if (Result) {
+    if (ForwardRef* F = dyn_cast<ForwardRef>(Result)) {
+      Result = F.Val;
+    }
+    return cast<Binding>(Result);
+  }
+  return Lookup(Name, Next);
+}
 
 namespace {
 // Evaluator
@@ -203,10 +227,10 @@ private:
   }
 
   Value* VisitSymbol(Symbol* S) {
-    Binding* Result = dyn_cast_or_null<Binding>(Context.Lookup(S));
+    Binding* Result = Context.Lookup(S);
     if (!Result) {
-      llvm::errs() << "Unbound symbol: " << S.getVal() << '\n';
-      // erm uhh
+      Context.SetError("Unbound symbol", S);
+      return;
     }
     push(Result.getValue());
   }
@@ -425,11 +449,20 @@ void forbid_div_zeros(Context&C, int Len) {
   C.EvalContext.push(Num);
 }
 
+void operator_add(Context&C, int Len) {
+  operator_rec<NumberOp::Add>(C, Len);
+}
+void operator_mul(Context&C, int Len) {
+  operator_rec<NumberOp::Mul>(C, Len);
+}
+void operator_sub(Context&C, int Len) {
+  operator_rec<NumberOp::Mul>(C, Len);
+}
 void operator_div(Context& C, int Len) {
   Number* Num = C.popArg<Number>();
   if (CheckError()) return;
   if (Num->isExactZero()) {
-    C.EvalStack.discard(Len - 1)
+    C.EvalStack.discard(Len - 1);
     C.EvalStack.push(Num);
     return;  
   }
@@ -443,16 +476,25 @@ void operator_div(Context& C, int Len) {
 }} // end of namespace clang::heavy::builtin
 
 namespace clang { namespace heavy {
-  // This is just a temporary interface for printing
-  // top level expressions
-  Value* eval(Context& C, Value* V) {
-    C.EvalStack.push(V);
-    builtin::eval(C, 1);
-    return C.EvalStack.pop();
-  }
+// This is just a temporary interface for printing
+// top level expressions
+Value* eval(Context& C, Value* V) {
+  C.EvalStack.push(V);
+  builtin::eval(C, 1);
+  return C.EvalStack.pop();
+}
 
-  void write(llvm::raw_ostream& OS, Value* V) {
-    Writer W(OS);
-    return W.Visit(V);
-  }
+void write(llvm::raw_ostream& OS, Value* V) {
+  Writer W(OS);
+  return W.Visit(V);
+}
+
+Context::LoadSystemModule() {
+  SystemModule = CreateModule();
+  AddBuiltin("+", builtins::operator_add);
+  AddBuiltin("*", builtins::operator_mul);
+  AddBuiltin("-", builtins::operator_sub);
+  AddBuiltin("/", builtins::operator_div);
+}
+
 }} // end namespace clang::heavy

@@ -41,7 +41,7 @@ class Context;
 class Value;
 using ValueResult = ActionResult<Value*>;
 // All builtins should receive a list as args
-using ValueFn = (*)(Context&, int NumArgs);
+using ValueFn = void (*)(Context&, int NumArgs);
 inline auto ValueError() { return ValueResult(true); }
 inline auto ValueEmpty() { return ValueResult(false); }
 
@@ -66,10 +66,12 @@ public:
     CppDecl, // C++ decl name
     Empty,
     Error,
+    Environment,
     Exception,
     Float,
+    ForwardRef,
     Integer,
-    Module
+    Module,
     Pair,
     Procedure,
     String,
@@ -119,11 +121,44 @@ public:
   Value* Message;
   Value* Irritants;
 
-  Error(Value* Message, Value* I)
+  Error(Value* M, Value* I)
     : Value(Kind::Error)
     , Message(M)
     , Irritants(I)
   { }
+
+  static bool classof(Value const* V) { return V->getKind() == Kind::Error; }
+};
+
+// Environment
+//  - Represents a Top Level Environment or
+//    an Environment Specifier created with (environment ...)
+//  - Stacks Modules the bottom of which is the SystemModule.
+//  - Only the top module can be mutable
+//  - Adding definitions that shadow parent environments
+//    is forbidden
+class Environment : public Value {
+  friend class Context;
+
+  Value* EnvStack;
+  bool IsMutable = false;
+
+public:
+  Environment(Value* Stack)
+    : Value(Kind::Environment)
+    , EnvStack(Stack)
+  { }
+
+#if 0
+  // not used
+  Value* Lookup(Symbol* Name) {
+    return Context::Lookup(Name, Stack);
+  }
+#endif
+
+  //Binding* AddDefinition(Symbol* Name, ...
+  static bool classof(Value const* V)
+  { return V->getKind() == Kind::Environment; }
 };
 
 class Exception: public Value {
@@ -133,7 +168,9 @@ public:
     : Value(Kind::Exception)
     , Val(Val)
   { }
-}
+
+  static bool classof(Value const* V) { return V->getKind() == Kind::Exception; }
+};
 
 class Boolean : public Value {
   bool Val;
@@ -148,6 +185,8 @@ public:
 };
 
 // Base class for Numeric types
+class Float;
+class Integer;
 class Number : public Value {
 protected:
   Number(Kind K)
@@ -160,23 +199,12 @@ public:
            V->getKind() == Kind::Float;
   }
 
-  static Value::Kind CommonKind(Number* X, Number* Y) {
-    if (isa<Float>(X) || isa<Float>(Y)) {
-      return Value::Kind::Float;
-    }
-    return Value::Kind::Integer;
-  }
-
   bool isExact() {
-    return V->getKind = Kind::Integer;
+    return getKind() == Kind::Integer;
   }
 
-  bool isExactZero() {
-    if (V->getKind = Kind::Integer) {
-      return cast<Integer>(this)->Val == 0;
-    }
-    return false;
-  }
+  bool isExactZero();
+  static Value::Kind CommonKind(Number* X, Number* Y);
 };
 
 class Integer : public Number {
@@ -195,11 +223,6 @@ public:
   static bool classof(Value const* V) {
     return V->getKind() == Kind::Integer;
   }
-
-  static void Add(Integer* X, Integer* Y) { X.Val += Y.Val; }
-  static void Sub(Integer* X, Integer* Y) { X.Val -= Y.Val; }
-  static void Mul(Integer* X, Integer* Y) { X.Val *= Y.Val; }
-  static void Div(Integer* X, Integer* Y) { X.Val /= Y.Val; }
 };
 
 class Float : public Number {
@@ -212,11 +235,22 @@ public:
     , Val(V)
   { }
 
-  void Add(Float* X)   { Val += X.getVal(); }
-
   auto getVal() { return Val; }
   static bool classof(Value const* V) { return V->getKind() == Kind::Float; }
 };
+
+inline Value::Kind Number::CommonKind(Number* X, Number* Y) {
+  if (isa<Float>(X) || isa<Float>(Y)) {
+    return Value::Kind::Float;
+  }
+  return Value::Kind::Integer;
+}
+inline bool Number::isExactZero() {
+  if (getKind() == Kind::Integer) {
+    return cast<Integer>(this)->Val == 0;
+  }
+  return false;
+}
 
 class Char : public Value {
   uint32_t Val;
@@ -229,10 +263,6 @@ public:
 
   auto getVal() { return Val; }
   static bool classof(Value const* V) { return V->getKind() == Kind::Char; }
-
-  static void Add(Float* X, Float* Y) {
-    X.Val += Y.Val;
-  }
 };
 
 class Symbol : public Value {
@@ -278,6 +308,11 @@ class Builtin : public Value {
 public:
   ValueFn Fn;
 
+  Builtin(ValueFn F)
+    : Value(Kind::Builtin)
+    , Fn(F)
+  { }
+
   static bool classof(Value const* V) {
     return V->getKind() == Kind::Builtin;
   }
@@ -286,6 +321,11 @@ public:
 class BuiltinSyntax : public Value {
 public:
   ValueFn Fn;
+
+  BuiltinSyntax(ValueFn F)
+    : Value(Kind::BuiltinSyntax)
+    , Fn(F)
+  { }
 
   static bool classof(Value const* V) {
     return V->getKind() == Kind::BuiltinSyntax;
@@ -318,7 +358,7 @@ public:
   // TODO ???
   Value* Transformer;
   static bool classof(Value const* V) { return V->getKind() == Kind::Syntax; }
-}
+};
 
 class Vector : public Value {
   ArrayRef<Value*> Vals;
@@ -335,27 +375,29 @@ public:
 
 class Binding : public Value {
   friend class Context;
-  // Binding is just a tagged list
-  //
-  // Possible representation:
-  // (symbol value)
-  Pair* P;
+  Symbol* Name;
+  Value* Val;
 
-  Binding(Pair* P)
+  Binding(Symbol* N, Value* V)
     : Value(Kind::Binding)
-    , P(P)
+    , Name(N)
+    , Val(V)
   { }
+
 public:
   Symbol* getName() {
-    return cast<Symbol>(P->Car);
+    return Name;
   }
 
-  ValueResult Lookup(Symbol* Name) {
-    if (Name->getVal() == getName()->getVal()) {
-      return cast<Pair>(P->Cdr)->Car;
+  // TODO not sure if this is needed
+  Value* Lookup(Symbol* OtherName) {
+    if (Name->getVal() == OtherName->getVal()) {
+      return Val;
     }
-    return ValueEmpty();
+    return nullptr;
   }
+
+  static bool classof(Value const* V) { return V->getKind() == Kind::Binding; }
 };
 
 class Module : public Value {
@@ -371,18 +413,27 @@ class Module : public Value {
     , Map(A)
   { }
 
-public:
-  ValueResult Lookup(Symbol* Name);
-  Binding* Insert(Context& C, Symbol* Name, Value* Val);
-
-  Binding* AddBuiltin(Context& C, StringRef str, ValueFn Fn) {
-    return Insert(C, C.CreateSymbol(str), C.CreateBuiltin(Fn));
+  Binding* Insert(Binding* B) {
+    Map.insert(std::make_pair(B->getName()->getVal(), B));
+    return B;
   }
-  Binding* AddBuiltinSyntax(Context& C, StringRef str, ValueFn Fn) {
-    return Insert(C, C.CreateSymbol(str), C.CreateBuiltinSyntax(Fn));
+public:
+  // Returns nullptr if not found
+  Value* Lookup(Symbol* Name) {
+    return Map.lookup(Name->getVal());
   }
 
   static bool classof(Value const* V) { return V->getKind() == Kind::Module; }
+};
+
+// ForwardRef - used for garbage collection
+class ForwardRef : public Value {
+public:
+  Value* Val;
+
+  ForwardRef(Value* V)
+    : Value(Kind::ForwardRef)
+  { }
 };
 
 class CppDecl : public Value {
@@ -416,7 +467,7 @@ public:
   }
 
   void push(Value* V) {
-    Storage.push_back(V)
+    Storage.push_back(V);
   }
 
   Value* pop() {
@@ -440,23 +491,24 @@ class Context {
   EvaluationStack EvalStack;
   // EnvStack
   //  - Should be at least one element on top of
-  //    SystemModule
-  //  - Calls to eval will set the EnvStack
+  //    an Environment
+  //  - Calls to procedures or eval will set the EnvStack
   //    and swap it back upon completion (via RAII)
   Module* SystemModule;
   Value* EnvStack;
   Value* ErrorHandlerStack;
-  Value* Error = nullptr;
+  Value* Err = nullptr;
 
   //bool ProcessFormals(Value* V, BindingRegion* Region, int& Arity);
-  //bool AddBinding(Pair* Region, Value* V);
 
   Binding* AddBuiltin(StringRef Str, ValueFn Fn) {
-    SystemModule.AddBuiltin(&this, SystemModule, Str, Fn);
+    return SystemModule->Insert(CreateBinding(CreateSymbol(Str),
+                                              CreateBuiltin(Fn)));
   }
 
   Binding* AddBuiltinSyntax(StringRef Str, ValueFn Fn) {
-    SystemModule.AddBuiltinSyntax(&this, SystemModule, Str, Fn);
+    return SystemModule->Insert(CreateBinding(CreateSymbol(Str),
+                                              CreateBuiltinSyntax(Fn)));
   }
 public:
   static std::unique_ptr<Context> CreateEmbedded(Parser& P);
@@ -476,28 +528,33 @@ public:
     return sizeof(int) * 8; // ???
   }
 
+  static Binding* Lookup(Symbol* Name, Value* Stack);
+  Binding* Lookup(Symbol* Name) {
+    return Lookup(Name, EnvStack);
+  }
+
   // Check Error
   //  - Returns true if there is an error or exception
   //  - Builtins will have to check this to stop evaluation
   //    when errors occur
   bool CheckError() {
-    return Error ? true : false;
+    return Err ? true : false;
   }
 
   void SetError(Value* E) {
     assert(isa<Error>(E) || isa<Exception>(E));
-    Error = E;
+    Err = E;
   }
 
   void SetError(StringRef S, Value* V) {
-    SetError(CreateError(S, CreatePair(V)))
+    SetError(CreateError(S, CreatePair(V)));
   }
 
   template <typename T>
   T* popArg() {
     T* V = dyn_cast<T>(EvalStack.pop());
     if (V == nullptr) {
-      SetError(CreateString("Contract violation: ???"), CreateEmpty());
+      SetError("Contract violation: ???", CreateEmpty());
     }
 
     return V;
@@ -509,11 +566,18 @@ public:
   Empty*    CreateEmpty() { return new (TrashHeap) Empty(); }
   Integer*  CreateInteger(llvm::APInt V);
   Float*    CreateFloat(llvm::APFloat V);
-  Pair*     CreatePair(Value* V1, Value* V2) { return new (TrashHeap) Pair(V1, V2); }
-  Pair*     CreatePair(Value* V1) { return new (TrashHeap) Pair(V1, CreateEmpty()); }
+  Pair*     CreatePair(Value* V1, Value* V2) {
+    return new (TrashHeap) Pair(V1, V2);
+  }
+  Pair*     CreatePair(Value* V1) {
+    return new (TrashHeap) Pair(V1, CreateEmpty());
+  }
   String*   CreateString(StringRef V);
   Symbol*   CreateSymbol(StringRef V) { return new (TrashHeap) Symbol(V); }
   Vector*   CreateVector(ArrayRef<Value*> Xs);
+  Environment* CreateEnvironment() {
+    return new (TrashHeap) Environment(CreatePair(SystemModule));
+  }
   Typename* CreateTypename(QualType QT) {
     return new (TrashHeap) Typename(QT);
   }
@@ -550,7 +614,9 @@ public:
   }
 
   Module*  CreateModule();
-  Binding* CreateBinding(Symbol* S, Value*);
+  Binding* CreateBinding(Symbol* S, Value* V) {
+    return new (TrashHeap) Binding(S, V);
+  }
 };
 
 // ValueVisitor
