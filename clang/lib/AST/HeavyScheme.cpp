@@ -33,17 +33,18 @@ using llvm::ArrayRef;
 std::unique_ptr<Context> Context::CreateEmbedded(clang::Parser& P) {
   auto Cptr = std::make_unique<Context>();
   Cptr->CxxParser = &P;
-  Cptr->InitTopLevel();
   return Cptr;
 }
 
 Context::Context()
   : TrashHeap()
   , EvalStack()
-  , SystemModule(LoadSystemModule())
+  , SystemModule(CreateModule())
   , EnvStack(CreatePair(CreateEnvironment()))
   , ErrorHandlerStack(CreateEmpty())
-{ }
+{
+  LoadSystemModule();
+}
 
 // called inside GetIntWidth
 unsigned Context::GetHostIntWidth() const {
@@ -54,12 +55,12 @@ unsigned Context::GetHostIntWidth() const {
                    .getIntWidth();
 }
 
-String* Context::CreateString(StringRef V) {
+String* Context::CreateString(StringRef S) {
   // Allocate and copy the string data
-  char* NewStrData = (char*) TrashHeap.Allocate<char>(V.size());
-  std::memcpy(NewStrData, V.data(), V.size());
+  char* NewStrData = (char*) TrashHeap.Allocate<char>(S.size());
+  std::memcpy(NewStrData, S.data(), S.size());
 
-  return new (TrashHeap) String(StringRef(NewStrData, V.size()));
+  return new (TrashHeap) String(StringRef(NewStrData, S.size()));
 }
 
 Integer* Context::CreateInteger(llvm::APInt Val) {
@@ -103,7 +104,7 @@ bool Context::CheckFormals(Value* V, int& Arity) {
 
 Procedure* Context::CreateProcedure(Pair* P) {
   int Arity = 0;
-  Value* Formals = P.Car;
+  Value* Formals = P->Car;
   BindingRegion* Region = CreateRegion();
   ProcessFormals(Formals, Region, Arity);
 
@@ -117,7 +118,7 @@ Binding* Context::Lookup(Symbol* Name, Value* Stack) {
   Value* Result = nullptr;
   Value* V    = cast<Pair>(Stack)->Car;
   Value* Next = cast<Pair>(Stack)->Cdr;
-  switch (V->getValueKind()) {
+  switch (V->getKind()) {
 #if 0
     case Value::Kind::EnvFrame:
       Result = cast<EnvFrame>(V)->Lookup(Name);
@@ -127,14 +128,14 @@ Binding* Context::Lookup(Symbol* Name, Value* Stack) {
       Result = cast<Module>(V)->Lookup(Name);
       break;
     case Value::Kind::Environment:
-      Next = cast<Environment>(V).EnvStack;
+      Next = cast<Environment>(V)->EnvStack;
       break;
     default:
       llvm_unreachable("Invalid Lookup Type");
   }
   if (Result) {
     if (ForwardRef* F = dyn_cast<ForwardRef>(Result)) {
-      Result = F.Val;
+      Result = F->Val;
     }
     return cast<Binding>(Result);
   }
@@ -156,8 +157,8 @@ class Evaluator : public ValueVisitor<Evaluator> {
   clang::ASTContext* CxxAst = nullptr;
 
 public:
-  Evaluator(Context& C, Pair* Env) // TODO make Env an `Environment`
-    : Ctx(C)
+  Evaluator(clang::heavy::Context& C, Value* Env)
+    : Context(C)
   {
     OldEnvStack = Context.EnvStack;
     Context.EnvStack = Env;
@@ -169,12 +170,13 @@ public:
 
 private:
   void push(Value* V) {
-    Context.EvalStack.push();
+    Context.EvalStack.push(V);
   }
   Value* pop() {
     return Context.EvalStack.pop();
   }
   Value* top() {
+    return Context.EvalStack.top();
   }
 
   // Most objects simply evaluate to themselves
@@ -187,21 +189,27 @@ private:
     // on the stack.
     int Len = 0;
     EvalArguments(P, Len);
+    if (Context.CheckError()) return;
     
-    // The Car is the operator of a call expression
     Value* Operator = pop();
-    switch (Operator) {
-      case Value::Procedure:
+    --Len;
+    // TODO Check arity here since we have
+    //      the caller and callee
+    // TODO We could check a "Contract"
+    //      defined for builtins
+    switch (Operator->getKind()) {
+      case Value::Kind::Procedure:
         llvm_unreachable("TODO");
         break;
-      case Value::Syntax:
+      case Value::Kind::Syntax:
         llvm_unreachable("TODO");
         break;
-      case Value::Builtin:
+      case Value::Kind::Builtin: {
         Builtin* B = cast<Builtin>(Operator);
         B->Fn(Context, Len);
         break;
-      case Value::BuiltinSyntax:
+      }
+      case Value::Kind::BuiltinSyntax:
         // I think this will be just like a builtin function
         // with pointers to unevaluated AST as operands on the
         // call stack (do we even need to use the call stack?)
@@ -219,20 +227,21 @@ private:
     if (!P) {
       llvm::errs() <<
         "\nTODO Diagnose invalid syntax for call expression\n";
-      return ValueError();
+      Context.SetError("Invalid syntax for call expression", Args);
+      return ;
     }
     EvalArguments(P->Cdr, Len);
     Len += 1;
     Visit(P->Car);
   }
 
-  Value* VisitSymbol(Symbol* S) {
+  void VisitSymbol(Symbol* S) {
     Binding* Result = Context.Lookup(S);
     if (!Result) {
       Context.SetError("Unbound symbol", S);
       return;
     }
-    push(Result.getValue());
+    push(Result->getValue());
   }
 #if 0
   // BindArguments
@@ -242,7 +251,7 @@ private:
                             Pair* Args,
                             Value* Formals) {
     Pair* P;
-    switch (Formals.getValueKind()) {
+    switch (Formals->getKind()) {
     case Value::Empty: {
       llvm::errs() <<
         "\nTODO Diagnose arity mismatch (too many parameters)\n";
@@ -372,72 +381,72 @@ namespace clang { namespace heavy {
 struct NumberOp {
   // These operations always mutate the first operand
   struct Add {
-    static void f(Integer* X, Integer* Y) { X.Val += Y.Val; }
-    static void f(Float* X, Float *Y) { X.Val = X.Val + Y.Val; }
+    static void f(Integer* X, Integer* Y) { X->Val += Y->Val; }
+    static void f(Float* X, Float *Y) { X->Val = X->Val + Y->Val; }
   };
   struct Sub {
-    static void f(Integer* X, Integer* Y) { X.Val -= Y.Val; }
-    static void f(Float* X, Float *Y) { X.Val = X.Val - Y.Val; }
+    static void f(Integer* X, Integer* Y) { X->Val -= Y->Val; }
+    static void f(Float* X, Float *Y) { X->Val = X->Val - Y->Val; }
   };
   struct Mul {
-    static void f(Integer* X, Integer* Y) { X.Val *= Y.Val; }
-    static void f(Float* X, Float *Y) { X.Val = X.Val * Y.Val; }
+    static void f(Integer* X, Integer* Y) { X->Val *= Y->Val; }
+    static void f(Float* X, Float *Y) { X->Val = X->Val * Y->Val; }
   };
   struct Div {
-    static void f(Integer* X, Integer* Y) { X.Val.sdiv(Y.Val); }
-    static void f(Float* X, Float *Y) { X.Val = X.Val / Y.Val; }
+    static void f(Integer* X, Integer* Y) { X-> Val = X->Val.sdiv(Y->Val); }
+    static void f(Float* X, Float *Y) { X->Val = X->Val / Y->Val; }
   };
 };
 }} // end namespace clang::heavy
 
 namespace clang { namespace heavy { namespace builtin {
 void eval(Context& C, int Len) {
-  if (C.CheckArityAtLeast(1, Len)) return;
-  Value* ExprOrDef = C.popArg<>();
-  Pair* EnvStack = (Len == 1) ? C.popArg<Pair>() : C.EnvStack;
-  // TODO Environment should be the result of evaluating an `environment` spec
-  //Environment* EnvStack = (Len == 1) ? C.pop<EnvironmentStack>() : C.EnvStack;
+  assert((Len == 1 || Len == 2) && "Invalid arity to builtin `eval`");
+  Value* ExprOrDef = C.EvalStack.pop();
+  Environment* Env = (Len == 2) ? C.popArg<Environment>() : nullptr;
+  Value* EnvStack = Env ? Env->EnvStack : C.EnvStack;
   if (C.CheckError()) return;
   Evaluator Eval(C, EnvStack);
-  Eval.Visit(V);
+  Eval.Visit(ExprOrDef);
 }
 
 template <typename Op>
 void operator_rec(Context& C, int Len) {
   if (Len == 1) return;
   if (Len == 0) {
-    C.EvalStack.push(C.CreateInteger(0));
+    C.push(C.CreateInteger(0));
     return;
   }
   // pop two arguments and push the result of adding them
   Number* X = C.popArg<Number>();
   Number* Y = C.popArg<Number>();
   if (C.CheckError()) return;
-  Value::Kind CommonKind = Number::CommonKind(Sum, X);
+  Value::Kind CommonKind = Number::CommonKind(X, Y);
   Number* Result;
   switch (CommonKind) {
     case Value::Kind::Float: {
-      Float* CopyX = C.CreateFloat(X);
-      Float* CopyY = C.CreateFloat(Y);
+      Float* CopyX = C.CreateFloat(cast<Float>(X)->getVal());
+      Float* CopyY = C.CreateFloat(cast<Float>(Y)->getVal());
       Op::f(CopyX, CopyY);
       Result = CopyX;
       break;
     }
     case Value::Kind::Integer: {
       // we can assume they are both integers
-      Integer* CopyX = C.CreateInteger(cast<Integer>(X).getVal());
-      Op::f(CopyX, Y);
+      Integer* CopyX = C.CreateInteger(cast<Integer>(X)->getVal());
+      Op::f(CopyX, cast<Integer>(Y));
       Result = CopyX;
       break;
     }
     default:
       llvm_unreachable("Invalid arithmetic type");
   }
-  C.EvalStack.push(Result);
+  C.push(Result);
   operator_rec<Op>(C, Len - 1);
 }
 
 void forbid_div_zeros(Context&C, int Len) {
+  if (Len == 0) return;
   Number* Num = C.popArg<Number>();
   if (Num->isExactZero()) {
     C.SetError("Divide by exact zero", Num);
@@ -446,7 +455,7 @@ void forbid_div_zeros(Context&C, int Len) {
 
   forbid_div_zeros(C, Len - 1);
   // put the value back on the stack
-  C.EvalContext.push(Num);
+  C.EvalStack.push(Num);
 }
 
 void operator_add(Context&C, int Len) {
@@ -456,32 +465,32 @@ void operator_mul(Context&C, int Len) {
   operator_rec<NumberOp::Mul>(C, Len);
 }
 void operator_sub(Context&C, int Len) {
-  operator_rec<NumberOp::Mul>(C, Len);
+  operator_rec<NumberOp::Sub>(C, Len);
 }
 void operator_div(Context& C, int Len) {
   Number* Num = C.popArg<Number>();
-  if (CheckError()) return;
+  if (C.CheckError()) return;
   if (Num->isExactZero()) {
-    C.EvalStack.discard(Len - 1);
-    C.EvalStack.push(Num);
+    C.discard(Len - 1);
+    C.push(Num);
     return;  
   }
-  forbid_div_zeros(C, Len);
-  if (CheckError()) return;
-  // put the value back on the stack
-  C.EvalContext.push(Num);
+  forbid_div_zeros(C, Len - 1);
+  if (C.CheckError()) return;
+  // put the first arg back on the stack
+  C.EvalStack.push(Num);
   operator_rec<NumberOp::Div>(C, Len);
 }
 
-}} // end of namespace clang::heavy::builtin
+}}} // end of namespace clang::heavy::builtin
 
 namespace clang { namespace heavy {
 // This is just a temporary interface for printing
 // top level expressions
 Value* eval(Context& C, Value* V) {
-  C.EvalStack.push(V);
+  C.push(V);
   builtin::eval(C, 1);
-  return C.EvalStack.pop();
+  return C.pop();
 }
 
 void write(llvm::raw_ostream& OS, Value* V) {
@@ -489,12 +498,11 @@ void write(llvm::raw_ostream& OS, Value* V) {
   return W.Visit(V);
 }
 
-Context::LoadSystemModule() {
-  SystemModule = CreateModule();
-  AddBuiltin("+", builtins::operator_add);
-  AddBuiltin("*", builtins::operator_mul);
-  AddBuiltin("-", builtins::operator_sub);
-  AddBuiltin("/", builtins::operator_div);
-}
-
 }} // end namespace clang::heavy
+
+void Context::LoadSystemModule() {
+  AddBuiltin("+", builtin::operator_add);
+  AddBuiltin("*", builtin::operator_mul);
+  AddBuiltin("-", builtin::operator_sub);
+  AddBuiltin("/", builtin::operator_div);
+}

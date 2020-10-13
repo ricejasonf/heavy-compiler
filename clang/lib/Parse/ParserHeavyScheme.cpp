@@ -71,9 +71,9 @@ namespace {
   llvm::Optional<llvm::APInt>
   tryParseInteger(StringRef TokenSpan, unsigned BitWidth, unsigned Radix) {
     // largely inspired by NumericLiteralParser::GetIntegerValue
-    llvm::APInt RadixVal(BitWidth, Radix);
-    llvm::APInt DigitVal(BitWidth, 0);
-    llvm::APInt Val(BitWidth, 0);
+    llvm::APInt RadixVal(BitWidth, Radix, /*IsSigned=*/true);
+    llvm::APInt DigitVal(BitWidth, 0, /*IsSigned=*/true);
+    llvm::APInt Val(BitWidth, 0, /*IsSigned=*/true);
     llvm::APInt OldVal = Val;
     bool Negate = false;
     bool OverflowOccurred = false;
@@ -117,12 +117,12 @@ bool ParserHeavyScheme::Parse() {
   ValueResult Result;
   while (true) {
     Result = ParseTopLevelExpr();
-    ValueResult EvalResult(false);
+    Value* Val = nullptr;
     if (Result.isUsable()) {
-      EvalResult = eval(Context, Result.get());
+      Val = eval(Context, Result.get());
     }
-    if (EvalResult.isUsable()) {
-      write(llvm::errs(), EvalResult.get());
+    if (Val) {
+      write(llvm::errs(), Val);
       llvm::errs() << '\n';
     }
     else {

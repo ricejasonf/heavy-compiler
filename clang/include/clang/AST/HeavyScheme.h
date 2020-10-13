@@ -49,7 +49,7 @@ inline auto ValueEmpty() { return ValueResult(false); }
 // may be invalidated on a call to garbage
 // collection if it is not bound to a variable
 // at top level scope
-ValueResult eval(Context&, Value* V);
+Value* eval(Context&, Value* V);
 void write(raw_ostream&, Value*);
 
 // Value - A result of an evaluation
@@ -140,10 +140,10 @@ public:
 class Environment : public Value {
   friend class Context;
 
+public:
   Value* EnvStack;
   bool IsMutable = false;
 
-public:
   Environment(Value* Stack)
     : Value(Kind::Environment)
     , EnvStack(Stack)
@@ -389,6 +389,10 @@ public:
     return Name;
   }
 
+  Value* getValue() {
+    return Val;
+  }
+
   // TODO not sure if this is needed
   Value* Lookup(Symbol* OtherName) {
     if (Name->getVal() == OtherName->getVal()) {
@@ -434,16 +438,18 @@ public:
   ForwardRef(Value* V)
     : Value(Kind::ForwardRef)
   { }
+
+  static bool classof(Value const* V) { return V->getKind() == Kind::ForwardRef; }
 };
 
 class CppDecl : public Value {
   Decl* Val;
-  static bool classof(Value const* V) { return V->getKind() == Kind::CppDecl; }
 public:
   CppDecl(Decl* V)
     : Value(Kind::CppDecl)
     , Val(V)
   { }
+  static bool classof(Value const* V) { return V->getKind() == Kind::CppDecl; }
 };
 
 class Typename : public Value {
@@ -488,6 +494,7 @@ public:
 class Context {
   AllocatorTy TrashHeap;
 
+public:
   EvaluationStack EvalStack;
   // EnvStack
   //  - Should be at least one element on top of
@@ -499,8 +506,8 @@ class Context {
   Value* ErrorHandlerStack;
   Value* Err = nullptr;
 
+private:
   //bool ProcessFormals(Value* V, BindingRegion* Region, int& Arity);
-
   Binding* AddBuiltin(StringRef Str, ValueFn Fn) {
     return SystemModule->Insert(CreateBinding(CreateSymbol(Str),
                                               CreateBuiltin(Fn)));
@@ -510,7 +517,9 @@ class Context {
     return SystemModule->Insert(CreateBinding(CreateSymbol(Str),
                                               CreateBuiltinSyntax(Fn)));
   }
+
 public:
+
   static std::unique_ptr<Context> CreateEmbedded(Parser& P);
 
   Parser* CxxParser = nullptr;
@@ -518,7 +527,7 @@ public:
   Context();
 
   void Init() { } // TODO Remove
-  Module* LoadSystemModule();
+  void LoadSystemModule();
 
   unsigned GetHostIntWidth() const;
   unsigned GetIntWidth() const {
@@ -550,6 +559,13 @@ public:
     SetError(CreateError(S, CreatePair(V)));
   }
 
+  // Stack functions are shortcuts to EvalStack
+  void push(Value* V) {
+    return EvalStack.push(V);
+  }
+  Value* pop() {
+    return EvalStack.pop();
+  }
   template <typename T>
   T* popArg() {
     T* V = dyn_cast<T>(EvalStack.pop());
@@ -559,12 +575,23 @@ public:
 
     return V;
   }
+  void discard(int N = 1) {
+    EvalStack.discard(N);
+  }
+  Value* top() {
+    return EvalStack.top();
+  }
 
   Boolean*  CreateBoolean(bool V) { return new (TrashHeap) Boolean(V); }
   Char*     CreateChar(char V) { return new (TrashHeap) Char(V); }
   CppDecl*  CreateCppDecl(Decl* V) { return new (TrashHeap) CppDecl(V); }
   Empty*    CreateEmpty() { return new (TrashHeap) Empty(); }
   Integer*  CreateInteger(llvm::APInt V);
+  Integer*  CreateInteger(int64_t X) {
+    int BitWidth = GetIntWidth();
+    llvm::APInt Val(BitWidth, X, /*IsSigned=*/true);
+    return CreateInteger(Val);
+  }
   Float*    CreateFloat(llvm::APFloat V);
   Pair*     CreatePair(Value* V1, Value* V2) {
     return new (TrashHeap) Pair(V1, V2);
@@ -613,7 +640,9 @@ public:
     return new (TrashHeap) Exception(V);
   }
 
-  Module*  CreateModule();
+  Module*  CreateModule() {
+    return new (TrashHeap) Module(TrashHeap);
+  }
   Binding* CreateBinding(Symbol* S, Value* V) {
     return new (TrashHeap) Binding(S, V);
   }
