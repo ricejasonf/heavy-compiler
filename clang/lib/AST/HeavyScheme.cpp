@@ -63,6 +63,19 @@ String* Context::CreateString(StringRef S) {
   return new (TrashHeap) String(StringRef(NewStrData, S.size()));
 }
 
+// This is handy for creating error messages that usually involve
+// concatenating two string constants, usually a message and a
+// value kind.
+String* Context::CreateString(StringRef S1, StringRef S2) {
+  // Allocate and copy the string data
+  unsigned size = S1.size() + S2.size();
+  char* NewStrData = (char*) TrashHeap.Allocate<char>(size);
+  std::memcpy(NewStrData            , S1.data(), S1.size());
+  std::memcpy(NewStrData + S1.size(), S2.data(), S2.size());
+
+  return new (TrashHeap) String(StringRef(NewStrData, size));
+}
+
 Integer* Context::CreateInteger(llvm::APInt Val) {
   return new (TrashHeap) Integer(Val);
 }
@@ -217,9 +230,14 @@ private:
         // call stack (do we even need to use the call stack?)
         llvm_unreachable("TODO");
         break;
-      default:
-        Context.SetError("Invalid operator for call expression", Operator);
+      default: {
+        Message* Msg = Context.CreateMessage(
+          "Invalid operator for call expression: ",
+          Operator.getKindName()
+        );
+        Context.SetError(P->getSourceLocation(), Msg, Operator);
         return;
+      }
     }
   }
 
@@ -227,7 +245,7 @@ private:
     if (isa<Empty>(Args)) return;
     Pair* P = dyn_cast<Pair>(Args);
     if (!P) {
-      Context.SetError("Invalid syntax for call expression", Args);
+      Context.SetError("Call expression must be a proper list", Args);
       return ;
     }
     // Arguments are evaluated right to left
@@ -310,9 +328,9 @@ private:
   }
 
   void VisitValue(Value* V) {
-    OS << "<Value of Kind:";
-    PrintKind(OS, V);
-    OS << ">";
+    OS << "<Value of Kind:"
+       << V->getKindName()
+       << ">";
   }
 
   void VisitBoolean(Boolean* V) {

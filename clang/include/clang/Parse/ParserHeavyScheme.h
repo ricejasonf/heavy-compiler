@@ -14,6 +14,7 @@
 #define LLVM_CLANG_PARSE_PARSER_HEAVY_SCHEME_H
 
 #include "clang/AST/HeavyScheme.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Parse/Parser.h"
 #include <string>

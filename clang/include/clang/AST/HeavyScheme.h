@@ -90,9 +90,39 @@ protected:
   Value (Kind VK)
     : ValueKind(VK)
   { }
+
 public:
   bool isMutable() const { return IsMutable; }
   Kind getKind() const { return ValueKind; }
+  StringRef getKindName();
+
+  SourceLocation getSourceLocation() {
+    if (ValueWithSource::classof(this)) {
+      return cast<ValueWithSource>(this)->getSourceLocation();
+    }
+    return SourceLocation();
+  }
+};
+
+// ValueWithSource
+//  - A base class to supplement a Value with
+//    source information
+class ValueWithSource {
+  SourceLocation Loc;
+public:
+  ValueWithSource(SourceLocation L)
+    : Loc(L)
+  { }
+
+  SourceLocation getSourceLocation() const {
+    return Loc;
+  }
+
+  static bool classof(Value const* V) {
+    return V->getKind() == Kind::Error  ||
+           V->getKind() == Kind::Symbol ||
+           V->getKind() == Kind::PairWithSource;
+  }
 };
 
 // This type is for internal use only
@@ -117,13 +147,15 @@ public:
   static bool classof(Value const* V) { return V->getKind() == Kind::Empty; }
 };
 
-class Error: public Value {
+class Error: public Value,
+             public ValueWithSource {
 public:
   Value* Message;
   Value* Irritants;
 
-  Error(Value* M, Value* I)
+  Error(SourceLocation L, Value* M, Value* I)
     : Value(Kind::Error)
+    , ValueWithSourceLocation(L)
     , Message(M)
     , Irritants(I)
   { }
@@ -268,7 +300,8 @@ public:
   static bool classof(Value const* V) { return V->getKind() == Kind::Char; }
 };
 
-class Symbol : public Value {
+class Symbol : public Value,
+               public ValueWithSource {
   StringRef Val;
 
 public:
@@ -298,13 +331,41 @@ public:
   Value* Car;
   Value* Cdr;
 
-  static bool classof(Value const* V) { return V->getKind() == Kind::Pair; }
-
   Pair(Value* First, Value* Second)
     : Value(Kind::Pair)
     , Car(First)
     , Cdr(Second)
   { }
+
+  Pair(Kind K, Value* First, Value* Second)
+    : Value(K)
+    , Car(First)
+    , Cdr(Second)
+  { }
+
+  static bool classof(Value const* V) {
+    return V->getKind() == Kind::Pair ||
+           V->getKind() == Kind::PairWithSource;
+  }
+};
+
+class PairWithSource : public Pair,
+                       public ValueWithSource {
+
+public:
+  PairWithSource(Value* First, Value* Second, SourceLocation L)
+    : Pair(Kind::PairWithSource, First, Second)
+    , Loc(L)
+  { }
+
+  // returns the character that opens the pair
+  // ( | { | [
+  char getBraceType() {
+    // TODO
+    return '(';
+  }
+
+  static bool classof(Value const* V) { return V->getKind() == Kind::PairWithSource; }
 };
 
 class Builtin : public Value {
@@ -568,8 +629,21 @@ public:
     }
   }
 
+  void SetError(SourceLocation Loc, String* S, Value* E) {
+    SetError(CreateError(Loc, S, CreatePair(V)));
+  }
+
+  void SetError(String* S, Value* V) {
+    SourceLocation Loc = V->getSourceLocation();
+    SetError(CreateError(Loc, S, CreatePair(V)));
+  }
+
   void SetError(StringRef S, Value* V) {
-    SetError(CreateError(S, CreatePair(V)));
+    SetError(CreateString(S), V);
+  }
+
+  void SetError(SourceLocation Loc, StringRef S, Value* V) {
+    SetError(Loc, CreateString(S), V);
   }
 
   // Stack functions are shortcuts to EvalStack
@@ -612,7 +686,12 @@ public:
   Pair*     CreatePair(Value* V1) {
     return new (TrashHeap) Pair(V1, CreateEmpty());
   }
-  String*   CreateString(StringRef V);
+  PairWithSource* CreatePairWithSource(Value* V1, Value* V2,
+                                       SourceLocation Loc) {
+    return new (TrashHeap) PairWithSource(V1, V2, Loc);
+  }
+  String*   CreateString(StringRef S);
+  String*   CreateString(StringRef S1, StringRef S2);
   Symbol*   CreateSymbol(StringRef V) { return new (TrashHeap) Symbol(V); }
   Vector*   CreateVector(ArrayRef<Value*> Xs);
   Environment* CreateEnvironment() {
@@ -641,12 +720,8 @@ public:
     return new (TrashHeap) BuiltinSyntax(Fn);
   }
 
-  Error* CreateError(Value* Message, Pair* Irritants) {
-    return new (TrashHeap) Error(Message, Irritants);
-  }
-
-  Error* CreateError(StringRef S, Pair* P) {
-    return CreateError(CreateString(S), P);
+  Error* CreateError(SourceLocation Loc, Value* Message, Pair* Irritants) {
+    return new (TrashHeap) Error(Loc, Message, Irritants);
   }
 
   Exception* CreateException(Value* V) {
@@ -734,6 +809,7 @@ public:
     case Value::Kind::Integer:        DISPATCH(Integer);
     case Value::Kind::Module:         DISPATCH(Module);
     case Value::Kind::Pair:           DISPATCH(Pair);
+    case Value::Kind::PairWithSource: DISPATCH(PairWithSource);
     case Value::Kind::Procedure:      DISPATCH(Procedure);
     case Value::Kind::String:         DISPATCH(String);
     case Value::Kind::Symbol:         DISPATCH(Symbol);
@@ -749,38 +825,40 @@ public:
 #undef VISIT_FN
 };
 
-#define PRINT_KIND_CASE(KIND) case Value::Kind::KIND: OS << #KIND; break;
-inline raw_ostream& PrintKind(raw_ostream& OS, Value* V) {
-  switch (V->getKind()) {
-  PRINT_KIND_CASE(Undefined)
-  PRINT_KIND_CASE(Binding)
-  PRINT_KIND_CASE(Boolean)
-  PRINT_KIND_CASE(Builtin)
-  PRINT_KIND_CASE(BuiltinSyntax)
-  PRINT_KIND_CASE(Char)
-  PRINT_KIND_CASE(CppDecl)
-  PRINT_KIND_CASE(Empty)
-  PRINT_KIND_CASE(Error)
-  PRINT_KIND_CASE(Environment)
-  PRINT_KIND_CASE(Exception)
-  PRINT_KIND_CASE(Float)
-  PRINT_KIND_CASE(ForwardRef)
-  PRINT_KIND_CASE(Integer)
-  PRINT_KIND_CASE(Module)
-  PRINT_KIND_CASE(Pair)
-  PRINT_KIND_CASE(Procedure)
-  PRINT_KIND_CASE(String)
-  PRINT_KIND_CASE(Symbol)
-  PRINT_KIND_CASE(Syntax)
-  PRINT_KIND_CASE(Typename)
-  PRINT_KIND_CASE(Vector)
+#define GET_KIND_NAME_CASE(KIND) \
+  case Value::Kind::KIND: return StringRef(#KIND, sizeof(#KIND));
+inline StringRef Value::getKindName() {
+  switch (getKind()) {
+  GET_KIND_NAME_CASE(Undefined)
+  GET_KIND_NAME_CASE(Binding)
+  GET_KIND_NAME_CASE(Boolean)
+  GET_KIND_NAME_CASE(Builtin)
+  GET_KIND_NAME_CASE(BuiltinSyntax)
+  GET_KIND_NAME_CASE(Char)
+  GET_KIND_NAME_CASE(CppDecl)
+  GET_KIND_NAME_CASE(Empty)
+  GET_KIND_NAME_CASE(Error)
+  GET_KIND_NAME_CASE(Environment)
+  GET_KIND_NAME_CASE(Exception)
+  GET_KIND_NAME_CASE(Float)
+  GET_KIND_NAME_CASE(ForwardRef)
+  GET_KIND_NAME_CASE(Integer)
+  GET_KIND_NAME_CASE(Module)
+  GET_KIND_NAME_CASE(Pair)
+  GET_KIND_NAME_CASE(PairWithSource)
+  GET_KIND_NAME_CASE(Procedure)
+  GET_KIND_NAME_CASE(String)
+  GET_KIND_NAME_CASE(Symbol)
+  GET_KIND_NAME_CASE(Syntax)
+  GET_KIND_NAME_CASE(Typename)
+  GET_KIND_NAME_CASE(Vector)
   default:
     OS << "?????";
     break;
   }
   return OS;
 }
-#undef PRINT_KIND_CASE
+#undef GET_KIND_NAME_CASE
 
 }} // namespace clang::heavy
 

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/HeavyScheme.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/ParserHeavyScheme.h"
@@ -178,11 +179,15 @@ ValueResult ParserHeavyScheme::ParseExpr() {
 ValueResult ParserHeavyScheme::ParseListStart() {
   // Consume the l_paren
   assert(Tok.is(tok::l_paren));
+  SourceLocation StartTok = Tok;
   ConsumeToken();
-  return ParseList();
+  return ParseList(StartTok);
 }
 
-ValueResult ParserHeavyScheme::ParseList() {
+ValueResult ParserHeavyScheme::ParseList(Token const& StartTok) {
+  Token CurTok = Tok;
+  // TODO Use StartTok to identify the proper
+  //      closing token to match with
   if (Tok.is(tok::r_paren)) {
     ConsumeToken();
     return Context.CreateEmpty();
@@ -195,23 +200,24 @@ ValueResult ParserHeavyScheme::ParseList() {
 
   ValueResult Cdr;
   if (Tok.is(tok::period)) {
-    Cdr = ParseDottedCdr();
+    Cdr = ParseDottedCdr(StartTok);
   } else {
-    Cdr = ParseList();
+    Cdr = ParseList(StartTok);
   }
 
   if (!Cdr.isUsable()) {
     return ValueError();
   }
 
-  return Context.CreatePair(Car.get(),
-                                 Cdr.get());
+  return Context.CreatePairWithSource(Car.get(),
+                                      Cdr.get(),
+                                      CurTok.getLocation());
 }
 
 // We have a dot while parsing a list,
 // so we expect a single expression
 // then the closing r_paren
-ValueResult ParserHeavyScheme::ParseDottedCdr() {
+ValueResult ParserHeavyScheme::ParseDottedCdr(Token const& StartTok) {
   assert(Tok.is(tok::period));
   ConsumeToken();
   ValueResult Cdr = ParseExpr();
