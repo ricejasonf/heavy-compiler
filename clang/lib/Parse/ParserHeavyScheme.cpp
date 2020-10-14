@@ -80,7 +80,7 @@ namespace {
 
     // may start with sign
     if (TokenSpan[0] == '+' || TokenSpan[0] == '-') {
-      Negate = true;
+      Negate = TokenSpan[0] == '-';
       TokenSpan = TokenSpan.drop_front(1);
     }
     for (char c : TokenSpan) {
@@ -121,6 +121,11 @@ bool ParserHeavyScheme::Parse() {
     if (Result.isUsable()) {
       Val = eval(Context, Result.get());
     }
+    if (Context.Err) {
+      Context.PrintError(llvm::errs() << "error: ") << '\n';
+      break;
+    }
+
     if (Val) {
       write(llvm::errs(), Val);
       llvm::errs() << '\n';

@@ -181,10 +181,12 @@ private:
 
   // Most objects simply evaluate to themselves
   void VisitValue(Value* V) {
+    if (Context.CheckError()) return;
     push(V);
   }
 
   void VisitPair(Pair* P) {
+    if (Context.CheckError()) return;
     // Visit each element in reverse order and evaluate
     // on the stack.
     int Len = 0;
@@ -216,8 +218,8 @@ private:
         llvm_unreachable("TODO");
         break;
       default:
-        llvm::errs() << "Expression is not a function\n";
-        break;
+        Context.SetError("Invalid operator for call expression", Operator);
+        return;
     }
   }
 
@@ -225,17 +227,18 @@ private:
     if (isa<Empty>(Args)) return;
     Pair* P = dyn_cast<Pair>(Args);
     if (!P) {
-      llvm::errs() <<
-        "\nTODO Diagnose invalid syntax for call expression\n";
       Context.SetError("Invalid syntax for call expression", Args);
       return ;
     }
+    // Arguments are evaluated right to left
     EvalArguments(P->Cdr, Len);
+    if (Context.CheckError()) return;
     Len += 1;
     Visit(P->Car);
   }
 
   void VisitSymbol(Symbol* S) {
+    if (Context.CheckError()) return;
     Binding* Result = Context.Lookup(S);
     if (!Result) {
       Context.SetError("Unbound symbol", S);
@@ -307,7 +310,9 @@ private:
   }
 
   void VisitValue(Value* V) {
-    OS << "????";
+    OS << "<Value of Kind:";
+    PrintKind(OS, V);
+    OS << ">";
   }
 
   void VisitBoolean(Boolean* V) {

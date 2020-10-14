@@ -73,6 +73,7 @@ public:
     Integer,
     Module,
     Pair,
+    PairWithSource,
     Procedure,
     String,
     Symbol,
@@ -126,6 +127,8 @@ public:
     , Message(M)
     , Irritants(I)
   { }
+
+  raw_ostream& Print(raw_ostream& OS);
 
   static bool classof(Value const* V) { return V->getKind() == Kind::Error; }
 };
@@ -553,6 +556,16 @@ public:
   void SetError(Value* E) {
     assert(isa<Error>(E) || isa<Exception>(E));
     Err = E;
+    EvalStack.push(E);
+  }
+
+  raw_ostream& PrintError(raw_ostream& OS) {
+    assert(Err && "PrintError requires an error be set");
+    if (Error* E = dyn_cast_or_null<Error>(Err)) {
+      return E->Print(OS);
+    } else {
+      return OS << "Unknown error (invalid error type)";
+    }
   }
 
   void SetError(StringRef S, Value* V) {
@@ -648,6 +661,15 @@ public:
   }
 };
 
+inline raw_ostream& Error::Print(raw_ostream& OS) {
+  if (String* S = dyn_cast<String>(Message)) {
+    OS << S->Val;
+  } else {
+    OS << "Unknown error";
+  }
+  return OS;
+}
+
 // ValueVisitor
 // This will be the base class for evaluation and printing
 template <typename Derived, typename RetTy = void>
@@ -669,34 +691,55 @@ protected:
 
   // The default implementations for visiting
   // nodes is to call Derived::VisitValue
+
+  VISIT_FN(Undefined)
+  VISIT_FN(Binding)
   VISIT_FN(Boolean)
+  VISIT_FN(Builtin)
+  VISIT_FN(BuiltinSyntax)
   VISIT_FN(Char)
   VISIT_FN(CppDecl)
   VISIT_FN(Empty)
-  VISIT_FN(Integer)
+  VISIT_FN(Error)
+  VISIT_FN(Environment)
+  VISIT_FN(Exception)
   VISIT_FN(Float)
+  VISIT_FN(ForwardRef)
+  VISIT_FN(Integer)
+  VISIT_FN(Module)
   VISIT_FN(Pair)
   VISIT_FN(Procedure)
   VISIT_FN(String)
   VISIT_FN(Symbol)
+  VISIT_FN(Syntax)
   VISIT_FN(Typename)
   VISIT_FN(Vector)
 
 public:
   RetTy Visit(Value* V) {
     switch (V->getKind()) {
-    case Value::Kind::Boolean:    DISPATCH(Boolean);
-    case Value::Kind::Char:       DISPATCH(Char);
-    case Value::Kind::CppDecl:    DISPATCH(CppDecl);
-    case Value::Kind::Empty:      DISPATCH(Empty);
-    case Value::Kind::Integer:    DISPATCH(Integer);
-    case Value::Kind::Float:      DISPATCH(Float);
-    case Value::Kind::Pair:       DISPATCH(Pair);
-    case Value::Kind::Procedure:  DISPATCH(Procedure);
-    case Value::Kind::String:     DISPATCH(String);
-    case Value::Kind::Symbol:     DISPATCH(Symbol);
-    case Value::Kind::Typename:   DISPATCH(Typename);
-    case Value::Kind::Vector:     DISPATCH(Vector);
+    case Value::Kind::Undefined:      DISPATCH(Undefined);
+    case Value::Kind::Binding:        DISPATCH(Binding);
+    case Value::Kind::Boolean:        DISPATCH(Boolean);
+    case Value::Kind::Builtin:        DISPATCH(Builtin);
+    case Value::Kind::BuiltinSyntax:  DISPATCH(BuiltinSyntax);
+    case Value::Kind::Char:           DISPATCH(Char);
+    case Value::Kind::CppDecl:        DISPATCH(CppDecl);
+    case Value::Kind::Empty:          DISPATCH(Empty);
+    case Value::Kind::Error:          DISPATCH(Error);
+    case Value::Kind::Environment:    DISPATCH(Environment);
+    case Value::Kind::Exception:      DISPATCH(Exception);
+    case Value::Kind::Float:          DISPATCH(Float);
+    case Value::Kind::ForwardRef:     DISPATCH(ForwardRef);
+    case Value::Kind::Integer:        DISPATCH(Integer);
+    case Value::Kind::Module:         DISPATCH(Module);
+    case Value::Kind::Pair:           DISPATCH(Pair);
+    case Value::Kind::Procedure:      DISPATCH(Procedure);
+    case Value::Kind::String:         DISPATCH(String);
+    case Value::Kind::Symbol:         DISPATCH(Symbol);
+    case Value::Kind::Syntax:         DISPATCH(Syntax);
+    case Value::Kind::Typename:       DISPATCH(Typename);
+    case Value::Kind::Vector:         DISPATCH(Vector);
     default:
       llvm_unreachable("Invalid Value Kind");
     }
@@ -705,6 +748,39 @@ public:
 #undef DISPATCH
 #undef VISIT_FN
 };
+
+#define PRINT_KIND_CASE(KIND) case Value::Kind::KIND: OS << #KIND; break;
+inline raw_ostream& PrintKind(raw_ostream& OS, Value* V) {
+  switch (V->getKind()) {
+  PRINT_KIND_CASE(Undefined)
+  PRINT_KIND_CASE(Binding)
+  PRINT_KIND_CASE(Boolean)
+  PRINT_KIND_CASE(Builtin)
+  PRINT_KIND_CASE(BuiltinSyntax)
+  PRINT_KIND_CASE(Char)
+  PRINT_KIND_CASE(CppDecl)
+  PRINT_KIND_CASE(Empty)
+  PRINT_KIND_CASE(Error)
+  PRINT_KIND_CASE(Environment)
+  PRINT_KIND_CASE(Exception)
+  PRINT_KIND_CASE(Float)
+  PRINT_KIND_CASE(ForwardRef)
+  PRINT_KIND_CASE(Integer)
+  PRINT_KIND_CASE(Module)
+  PRINT_KIND_CASE(Pair)
+  PRINT_KIND_CASE(Procedure)
+  PRINT_KIND_CASE(String)
+  PRINT_KIND_CASE(Symbol)
+  PRINT_KIND_CASE(Syntax)
+  PRINT_KIND_CASE(Typename)
+  PRINT_KIND_CASE(Vector)
+  default:
+    OS << "?????";
+    break;
+  }
+  return OS;
+}
+#undef PRINT_KIND_CASE
 
 }} // namespace clang::heavy
 
