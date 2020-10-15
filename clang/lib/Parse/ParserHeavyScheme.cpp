@@ -116,23 +116,28 @@ bool ParserHeavyScheme::Parse() {
   }
 
   ValueResult Result;
+  bool HasError = false;
   while (true) {
     Result = ParseTopLevelExpr();
+    // Keep parsing until we find the end
+    // brace (represented by ValueEmpty here)
+    if (Result.isInvalid()) continue;
+    if (Result.isUnset()) break;
+
     Value* Val = nullptr;
-    if (Result.isUsable()) {
+    if (!HasError) {
       Val = eval(Context, Result.get());
-    }
-    if (Context.Err) {
-      Context.PrintError(llvm::errs() << "error: ") << '\n';
-      break;
+      if (Context.Err) {
+        Val = nullptr;
+        HasError = true;
+        Context.PrintError(llvm::errs() << "error: ") << '\n';
+      }
     }
 
+    // TEMP print the result
     if (Val) {
       write(llvm::errs(), Val);
       llvm::errs() << '\n';
-    }
-    else {
-      break;
     }
   };
 
@@ -142,11 +147,14 @@ bool ParserHeavyScheme::Parse() {
 }
 
 ValueResult ParserHeavyScheme::ParseTopLevelExpr() {
+#if 0 // TODO Remove in favor of handling in ParseExpr
+              so it also handles extraneous end braces
   if (Tok.is(tok::r_brace)) {
     // The end of 
     //    heavy_scheme { ... }
     return ValueEmpty();
   }
+#endif
   return ParseExpr();
 }
 
@@ -170,6 +178,10 @@ ValueResult ParserHeavyScheme::ParseExpr() {
     return Context.CreateBoolean(false);
   case tok::string_literal:
     return ParseString();
+  case tok::r_brace:
+    // The end of `heavy_scheme { }` or an
+    // extraneous brace should end parsing
+    return ValueEmpty();
   default:
     CxxParser.Diag(Tok, diag::err_expected_expression);
     return ValueError();
