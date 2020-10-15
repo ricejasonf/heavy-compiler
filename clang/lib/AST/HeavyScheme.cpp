@@ -231,14 +231,18 @@ private:
         llvm_unreachable("TODO");
         break;
       default: {
-        Message* Msg = Context.CreateMessage(
+        String* Msg = Context.CreateString(
           "Invalid operator for call expression: ",
-          Operator.getKindName()
+          Operator->getKindName()
         );
         Context.SetError(P->getSourceLocation(), Msg, Operator);
         return;
       }
     }
+  }
+
+  void VisitPairWithSource(PairWithSource* P) {
+    VisitPair(P);
   }
 
   void EvalArguments(Value* Args, int& Len) {
@@ -372,6 +376,10 @@ private:
     }
     OS << ')';
     --IndentationLevel;
+  }
+
+  void VisitPairWithSource(PairWithSource* P) {
+    VisitPair(P);
   }
 
   void VisitVector(Vector* Vec) {

@@ -179,7 +179,7 @@ ValueResult ParserHeavyScheme::ParseExpr() {
 ValueResult ParserHeavyScheme::ParseListStart() {
   // Consume the l_paren
   assert(Tok.is(tok::l_paren));
-  SourceLocation StartTok = Tok;
+  Token StartTok = Tok;
   ConsumeToken();
   return ParseList(StartTok);
 }

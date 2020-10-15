@@ -51,7 +51,7 @@ class ParserHeavyScheme {
 
   ValueResult ParseCharConstant();
   ValueResult ParseCppDecl();
-  ValueResult ParseList();
+  ValueResult ParseList(Token const& StartTok);
   ValueResult ParseListStart();
   ValueResult ParseNumber();
   ValueResult ParseString();
@@ -60,7 +60,7 @@ class ParserHeavyScheme {
   ValueResult ParseVectorStart();
   ValueResult ParseVector(SmallVectorImpl<Value*>& Xs);
 
-  ValueResult ParseDottedCdr();
+  ValueResult ParseDottedCdr(Token const& StartTok);
   ValueResult ParseSpecialEscapeSequence();
 
 public:

@@ -96,12 +96,7 @@ public:
   Kind getKind() const { return ValueKind; }
   StringRef getKindName();
 
-  SourceLocation getSourceLocation() {
-    if (ValueWithSource::classof(this)) {
-      return cast<ValueWithSource>(this)->getSourceLocation();
-    }
-    return SourceLocation();
-  }
+  SourceLocation getSourceLocation();
 };
 
 // ValueWithSource
@@ -119,11 +114,18 @@ public:
   }
 
   static bool classof(Value const* V) {
-    return V->getKind() == Kind::Error  ||
-           V->getKind() == Kind::Symbol ||
-           V->getKind() == Kind::PairWithSource;
+    return V->getKind() == Value::Kind::Error  ||
+           V->getKind() == Value::Kind::Symbol ||
+           V->getKind() == Value::Kind::PairWithSource;
   }
 };
+
+inline SourceLocation Value::getSourceLocation() {
+  if (ValueWithSource::classof(this)) {
+    return cast<ValueWithSource>(this)->getSourceLocation();
+  }
+  return SourceLocation();
+}
 
 // This type is for internal use only
 // specifically for uninitialized bindings
@@ -155,7 +157,7 @@ public:
 
   Error(SourceLocation L, Value* M, Value* I)
     : Value(Kind::Error)
-    , ValueWithSourceLocation(L)
+    , ValueWithSource(L)
     , Message(M)
     , Irritants(I)
   { }
@@ -307,6 +309,7 @@ class Symbol : public Value,
 public:
   Symbol(StringRef V)
     : Value(Kind::Symbol)
+    , ValueWithSource(SourceLocation())
     , Val(V)
   { }
 
@@ -355,7 +358,7 @@ class PairWithSource : public Pair,
 public:
   PairWithSource(Value* First, Value* Second, SourceLocation L)
     : Pair(Kind::PairWithSource, First, Second)
-    , Loc(L)
+    , ValueWithSource(L)
   { }
 
   // returns the character that opens the pair
@@ -629,7 +632,7 @@ public:
     }
   }
 
-  void SetError(SourceLocation Loc, String* S, Value* E) {
+  void SetError(SourceLocation Loc, String* S, Value* V) {
     SetError(CreateError(Loc, S, CreatePair(V)));
   }
 
@@ -853,10 +856,8 @@ inline StringRef Value::getKindName() {
   GET_KIND_NAME_CASE(Typename)
   GET_KIND_NAME_CASE(Vector)
   default:
-    OS << "?????";
-    break;
+    return StringRef("?????");
   }
-  return OS;
 }
 #undef GET_KIND_NAME_CASE
 
