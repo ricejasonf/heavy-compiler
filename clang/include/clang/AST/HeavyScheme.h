@@ -112,20 +112,7 @@ public:
   SourceLocation getSourceLocation() const {
     return Loc;
   }
-
-  static bool classof(Value const* V) {
-    return V->getKind() == Value::Kind::Error  ||
-           V->getKind() == Value::Kind::Symbol ||
-           V->getKind() == Value::Kind::PairWithSource;
-  }
 };
-
-inline SourceLocation Value::getSourceLocation() {
-  if (ValueWithSource::classof(this)) {
-    return cast<ValueWithSource>(this)->getSourceLocation();
-  }
-  return SourceLocation();
-}
 
 // This type is for internal use only
 // specifically for uninitialized bindings
@@ -151,9 +138,9 @@ public:
 
 class Error: public Value,
              public ValueWithSource {
-public:
   Value* Message;
   Value* Irritants;
+public:
 
   Error(SourceLocation L, Value* M, Value* I)
     : Value(Kind::Error)
@@ -162,7 +149,7 @@ public:
     , Irritants(I)
   { }
 
-  raw_ostream& Print(raw_ostream& OS);
+  StringRef getErrorMessage();
 
   static bool classof(Value const* V) { return V->getKind() == Kind::Error; }
 };
@@ -530,6 +517,24 @@ public:
   static bool classof(Value const* V) { return V->getKind() == Kind::Typename; }
 };
 
+inline SourceLocation Value::getSourceLocation() {
+  ValueWithSource* VS = nullptr;
+  switch (getKind()) {
+  case Kind::Error:
+    VS = cast<Error>(this);
+    break;
+  case Kind::Symbol:
+    VS = cast<Symbol>(this);
+    break;
+  case Kind::PairWithSource:
+    VS = cast<PairWithSource>(this);
+    break;
+  default:
+    return SourceLocation(); 
+  }
+  return VS->getSourceLocation();
+}
+
 class EvaluationStack {
   std::vector<Value*> Storage;
 public:
@@ -623,15 +628,6 @@ public:
     EvalStack.push(E);
   }
 
-  raw_ostream& PrintError(raw_ostream& OS) {
-    assert(Err && "PrintError requires an error be set");
-    if (Error* E = dyn_cast_or_null<Error>(Err)) {
-      return E->Print(OS);
-    } else {
-      return OS << "Unknown error (invalid error type)";
-    }
-  }
-
   void SetError(SourceLocation Loc, String* S, Value* V) {
     SetError(CreateError(Loc, S, CreatePair(V)));
   }
@@ -647,6 +643,20 @@ public:
 
   void SetError(SourceLocation Loc, StringRef S, Value* V) {
     SetError(Loc, CreateString(S), V);
+  }
+
+  SourceLocation getErrorLocation() {
+    if (Err) return Err->getSourceLocation();
+    return SourceLocation();
+  }
+
+  StringRef getErrorMessage() {
+    assert(Err && "PrintError requires an error be set");
+    if (Error* E = dyn_cast_or_null<Error>(Err)) {
+      return E->getErrorMessage();
+    } else {
+      return "Unknown error (invalid error type)";
+    }
   }
 
   // Stack functions are shortcuts to EvalStack
@@ -739,13 +749,11 @@ public:
   }
 };
 
-inline raw_ostream& Error::Print(raw_ostream& OS) {
+inline StringRef Error::getErrorMessage() {
   if (String* S = dyn_cast<String>(Message)) {
-    OS << S->Val;
-  } else {
-    OS << "Unknown error";
+    return  S->Val;
   }
-  return OS;
+  return "Unknown error (invalid error message)";
 }
 
 // ValueVisitor

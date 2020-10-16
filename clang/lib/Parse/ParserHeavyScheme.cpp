@@ -121,21 +121,22 @@ bool ParserHeavyScheme::Parse() {
     Result = ParseTopLevelExpr();
     // Keep parsing until we find the end
     // brace (represented by ValueEmpty here)
-    if (Result.isInvalid()) continue;
     if (Result.isUnset()) break;
-
-    Value* Val = nullptr;
-    if (!HasError) {
-      Val = eval(Context, Result.get());
-      if (Context.Err) {
-        Val = nullptr;
-        HasError = true;
-        Context.PrintError(llvm::errs() << "error: ") << '\n';
-      }
+    if (HasError) continue;
+    if (Result.isInvalid()) {
+      ConsumeToken();
+      HasError = true;
+      continue;
     }
 
-    // TEMP print the result
-    if (Val) {
+    Value* Val = eval(Context, Result.get());
+    if (Context.CheckError()) {
+      HasError = true;
+      assert(Context.getErrorLocation().isValid());
+      CxxParser.Diag(Context.getErrorLocation(), diag::err_heavy_scheme)
+        << Context.getErrorMessage();
+    } else {
+      // TEMP dump the result
       write(llvm::errs(), Val);
       llvm::errs() << '\n';
     }
@@ -147,14 +148,11 @@ bool ParserHeavyScheme::Parse() {
 }
 
 ValueResult ParserHeavyScheme::ParseTopLevelExpr() {
-#if 0 // TODO Remove in favor of handling in ParseExpr
-              so it also handles extraneous end braces
   if (Tok.is(tok::r_brace)) {
     // The end of 
     //    heavy_scheme { ... }
     return ValueEmpty();
   }
-#endif
   return ParseExpr();
 }
 
@@ -178,13 +176,27 @@ ValueResult ParserHeavyScheme::ParseExpr() {
     return Context.CreateBoolean(false);
   case tok::string_literal:
     return ParseString();
-  case tok::r_brace:
-    // The end of `heavy_scheme { }` or an
-    // extraneous brace should end parsing
-    return ValueEmpty();
-  default:
-    CxxParser.Diag(Tok, diag::err_expected_expression);
+  case tok::r_paren: {
+    CxxParser.Diag(Tok, diag::err_heavy_scheme)
+      << "extraneous closing paren (')')";
     return ValueError();
+  }
+  case tok::r_square: {
+    CxxParser.Diag(Tok, diag::err_heavy_scheme)
+      << "extraneous closing bracket (']')";
+    return ValueError();
+  }
+  case tok::r_brace: {
+    // extraneous brace should end parsing
+    CxxParser.Diag(Tok, diag::err_heavy_scheme)
+      << "extraneous closing brace ('}')";
+    return ValueEmpty();
+  }
+  default: {
+    CxxParser.Diag(Tok, diag::err_heavy_scheme)
+      << "expected expression";
+    return ValueError();
+  }
   }
 }
 
@@ -206,9 +218,7 @@ ValueResult ParserHeavyScheme::ParseList(Token const& StartTok) {
   }
 
   ValueResult Car = ParseExpr();
-  if (!Car.isUsable()) {
-    return ValueError();
-  }
+  if (!Car.isUsable()) return Car;
 
   ValueResult Cdr;
   if (Tok.is(tok::period)) {
@@ -217,9 +227,7 @@ ValueResult ParserHeavyScheme::ParseList(Token const& StartTok) {
     Cdr = ParseList(StartTok);
   }
 
-  if (!Cdr.isUsable()) {
-    return ValueError();
-  }
+  if (!Cdr.isUsable()) return Cdr;
 
   return Context.CreatePairWithSource(Car.get(),
                                       Cdr.get(),
@@ -254,7 +262,7 @@ ValueResult ParserHeavyScheme::ParseVector(SmallVectorImpl<Value*>& Xs) {
     return Context.CreateVector(Xs);
   }
   ValueResult Result = ParseExpr();
-  if (!Result.isUsable()) return ValueError();
+  if (!Result.isUsable()) return Result;
 
   Xs.push_back(Result.get());
   return ParseVector(Xs);
