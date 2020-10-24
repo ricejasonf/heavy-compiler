@@ -39,17 +39,19 @@ namespace clang { namespace heavy {
 using AllocatorTy = llvm::BumpPtrAllocator;
 class Context;
 class Value;
+class Pair;
 using ValueResult = ActionResult<Value*>;
-// All builtins should receive a list as args
 using ValueFn = void (*)(Context&, int NumArgs);
+using SyntaxFn = Value* (*)(Context&, Pair*);
 inline auto ValueError() { return ValueResult(true); }
 inline auto ValueEmpty() { return ValueResult(false); }
 
-// The resulting Value* of the eval function
+// The resulting Value* of these functions
 // may be invalidated on a call to garbage
 // collection if it is not bound to a variable
 // at top level scope
 Value* eval(Context&, Value* V);
+Value* syntax_expand(Context&, Value* V);
 void write(raw_ostream&, Value*);
 
 // Value - A result of an evaluation
@@ -75,6 +77,7 @@ public:
     Pair,
     PairWithSource,
     Procedure,
+    Quote,
     String,
     Symbol,
     Syntax,
@@ -96,12 +99,19 @@ public:
   Kind getKind() const { return ValueKind; }
   StringRef getKindName();
 
+  // not used
+  bool isSyntax() const {
+    return getKind() == Kind::Syntax ||
+           getKind() == Kind::BuiltinSyntax;
+  }
+
   SourceLocation getSourceLocation();
 };
 
 // ValueWithSource
 //  - A base class to supplement a Value with
-//    source information
+//    source information and to make it immutable
+//    (The source location may still be invalid)
 class ValueWithSource {
   SourceLocation Loc;
 public:
@@ -294,9 +304,9 @@ class Symbol : public Value,
   StringRef Val;
 
 public:
-  Symbol(StringRef V)
+  Symbol(StringRef V, SourceLocation L = SourceLocation())
     : Value(Kind::Symbol)
-    , ValueWithSource(SourceLocation())
+    , ValueWithSource(L)
     , Val(V)
   { }
 
@@ -374,9 +384,9 @@ public:
 
 class BuiltinSyntax : public Value {
 public:
-  ValueFn Fn;
+  SyntaxFn Fn;
 
-  BuiltinSyntax(ValueFn F)
+  BuiltinSyntax(SyntaxFn F)
     : Value(Kind::BuiltinSyntax)
     , Fn(F)
   { }
@@ -404,6 +414,19 @@ public:
 
   static bool classof(Value const* V) {
     return V->getKind() == Kind::Procedure;
+  }
+};
+
+class Quote : public Value {
+public:
+  Value* Val;
+  Quote(Value* V)
+    : Value(Kind::Quote)
+    , Val(V)
+  { }
+
+  static bool classof(Value const* V) {
+    return V->getKind() == Kind::Quote;
   }
 };
 
@@ -530,7 +553,7 @@ inline SourceLocation Value::getSourceLocation() {
     VS = cast<PairWithSource>(this);
     break;
   default:
-    return SourceLocation(); 
+    return SourceLocation();
   }
   return VS->getSourceLocation();
 }
@@ -585,7 +608,7 @@ private:
                                               CreateBuiltin(Fn)));
   }
 
-  Binding* AddBuiltinSyntax(StringRef Str, ValueFn Fn) {
+  Binding* AddBuiltinSyntax(StringRef Str, SyntaxFn Fn) {
     return SystemModule->Insert(CreateBinding(CreateSymbol(Str),
                                               CreateBuiltinSyntax(Fn)));
   }
@@ -609,9 +632,17 @@ public:
     return sizeof(int) * 8; // ???
   }
 
+  // Lookup
+  //  - Takes a Symbol or nullptr
+  //  - Returns a matching Binder or nullptr
   static Binding* Lookup(Symbol* Name, Value* Stack);
   Binding* Lookup(Symbol* Name) {
     return Lookup(Name, EnvStack);
+  }
+  Binding* Lookup(Value* Name) {
+    Symbol* S = dyn_cast<Symbol>(Name);
+    if (!S) return nullptr;
+    return Lookup(S);
   }
 
   // Check Error
@@ -705,7 +736,9 @@ public:
   }
   String*   CreateString(StringRef S);
   String*   CreateString(StringRef S1, StringRef S2);
-  Symbol*   CreateSymbol(StringRef V) { return new (TrashHeap) Symbol(V); }
+  Symbol*   CreateSymbol(StringRef V, SourceLocation Loc = SourceLocation()) {
+    return new (TrashHeap) Symbol(V, Loc);
+  }
   Vector*   CreateVector(ArrayRef<Value*> Xs);
   Environment* CreateEnvironment() {
     return new (TrashHeap) Environment(CreatePair(SystemModule));
@@ -729,7 +762,7 @@ public:
   Builtin* CreateBuiltin(ValueFn Fn) {
     return new (TrashHeap) Builtin(Fn);
   }
-  BuiltinSyntax* CreateBuiltinSyntax(ValueFn Fn) {
+  BuiltinSyntax* CreateBuiltinSyntax(SyntaxFn Fn) {
     return new (TrashHeap) BuiltinSyntax(Fn);
   }
 
@@ -747,6 +780,8 @@ public:
   Binding* CreateBinding(Symbol* S, Value* V) {
     return new (TrashHeap) Binding(S, V);
   }
+
+  Quote* CreateQuote(Value* V) { return new (TrashHeap) Quote(V); }
 };
 
 inline StringRef Error::getErrorMessage() {
@@ -794,12 +829,18 @@ protected:
   VISIT_FN(Integer)
   VISIT_FN(Module)
   VISIT_FN(Pair)
+  // VISIT_FN(PairWithSource) **PairWithSource Implemented below**
   VISIT_FN(Procedure)
+  VISIT_FN(Quote)
   VISIT_FN(String)
   VISIT_FN(Symbol)
   VISIT_FN(Syntax)
   VISIT_FN(Typename)
   VISIT_FN(Vector)
+
+  RetTy VisitPairWithSource(Pair* P) {
+    return getDerived().VisitPair(P);
+  }
 
 public:
   RetTy Visit(Value* V) {
@@ -820,8 +861,9 @@ public:
     case Value::Kind::Integer:        DISPATCH(Integer);
     case Value::Kind::Module:         DISPATCH(Module);
     case Value::Kind::Pair:           DISPATCH(Pair);
-    case Value::Kind::PairWithSource: DISPATCH(PairWithSource);
+    case Value::Kind::PairWithSource:    DISPATCH(PairWithSource);
     case Value::Kind::Procedure:      DISPATCH(Procedure);
+    case Value::Kind::Quote:          DISPATCH(Quote);
     case Value::Kind::String:         DISPATCH(String);
     case Value::Kind::Symbol:         DISPATCH(Symbol);
     case Value::Kind::Syntax:         DISPATCH(Syntax);
@@ -858,6 +900,7 @@ inline StringRef Value::getKindName() {
   GET_KIND_NAME_CASE(Pair)
   GET_KIND_NAME_CASE(PairWithSource)
   GET_KIND_NAME_CASE(Procedure)
+  GET_KIND_NAME_CASE(Quote)
   GET_KIND_NAME_CASE(String)
   GET_KIND_NAME_CASE(Symbol)
   GET_KIND_NAME_CASE(Syntax)

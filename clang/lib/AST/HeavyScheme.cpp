@@ -156,9 +156,55 @@ Binding* Context::Lookup(Symbol* Name, Value* Stack) {
 }
 
 namespace {
+class SyntaxExpander : public ValueVisitor<SyntaxExpander, Value*> {
+  friend class ValueVisitor<SyntaxExpander, Value*>;
+  clang::heavy::Context& Context;
+  // The "syntactic environment" extends
+  // the current top level environment
+  Value* OldEnvStack;
+
+public:
+  SyntaxExpander(clang::heavy::Context& C)
+    : Context(C)
+  {
+    OldEnvStack = Context.EnvStack;
+  }
+
+  ~SyntaxExpander() {
+    Context.EnvStack = OldEnvStack;
+  }
+
+private:
+  Value* VisitValue(Value* V) {
+    return V;
+  }
+
+  Value* VisitPair(Pair* P) {
+    if (Context.CheckError()) return Context.CreateEmpty();
+    Binding* B = Context.Lookup(P->Car);
+    if (!B) return P;
+
+    // Operator is some kind of syntax transformer
+    Value* Operator = B->getValue();
+
+    switch (Operator->getKind()) {
+      case Value::Kind::BuiltinSyntax: {
+        BuiltinSyntax* BS = cast<BuiltinSyntax>(Operator);
+        return BS->Fn(Context, P);
+      }
+      case Value::Kind::Syntax:
+        llvm_unreachable("TODO");
+        return Context.CreateEmpty();
+      default:
+        // not a syntax operator
+        return P;
+    }
+  }
+};
+
 // Evaluator
-//  - expands syntax
-//  - pushes to the evaluation stack
+//  - tree evaluator that uses the
+//    evaluation stack
 //  - to work with builtins and bytecode
 //  - uses RAII to replace the Context.EnvStack
 class Evaluator : public ValueVisitor<Evaluator> {
@@ -167,7 +213,6 @@ class Evaluator : public ValueVisitor<Evaluator> {
   // We use RAII to make the current call to `eval`
   // set the environment in Context
   Value* OldEnvStack;
-  clang::ASTContext* CxxAst = nullptr;
 
 public:
   Evaluator(clang::heavy::Context& C, Value* Env)
@@ -205,7 +250,7 @@ private:
     int Len = 0;
     EvalArguments(P, Len);
     if (Context.CheckError()) return;
-    
+
     Value* Operator = pop();
     --Len;
     // TODO Check arity here since we have
@@ -216,20 +261,11 @@ private:
       case Value::Kind::Procedure:
         llvm_unreachable("TODO");
         break;
-      case Value::Kind::Syntax:
-        llvm_unreachable("TODO");
-        break;
       case Value::Kind::Builtin: {
         Builtin* B = cast<Builtin>(Operator);
         B->Fn(Context, Len);
         break;
       }
-      case Value::Kind::BuiltinSyntax:
-        // I think this will be just like a builtin function
-        // with pointers to unevaluated AST as operands on the
-        // call stack (do we even need to use the call stack?)
-        llvm_unreachable("TODO");
-        break;
       default: {
         String* Msg = Context.CreateString(
           "Invalid operator for call expression: ",
@@ -241,8 +277,19 @@ private:
     }
   }
 
-  void VisitPairWithSource(PairWithSource* P) {
-    VisitPair(P);
+  void VisitQuote(Quote* Q) {
+    // simply unwrap the quoted value
+    push(Q->Val);
+  }
+
+  void VisitSymbol(Symbol* S) {
+    if (Context.CheckError()) return;
+    Binding* Result = Context.Lookup(S);
+    if (!Result) {
+      Context.SetError("Unbound symbol", S);
+      return;
+    }
+    push(Result->getValue());
   }
 
   void EvalArguments(Value* Args, int& Len) {
@@ -259,15 +306,6 @@ private:
     Visit(P->Car);
   }
 
-  void VisitSymbol(Symbol* S) {
-    if (Context.CheckError()) return;
-    Binding* Result = Context.Lookup(S);
-    if (!Result) {
-      Context.SetError("Unbound symbol", S);
-      return;
-    }
-    push(Result->getValue());
-  }
 #if 0
   // BindArguments
   // Args should be a list of evaluated inputs
@@ -378,8 +416,10 @@ private:
     --IndentationLevel;
   }
 
-  void VisitPairWithSource(PairWithSource* P) {
-    VisitPair(P);
+  void VisitQuote(Quote* Q) {
+    OS << "(quote ";
+    Visit(Q->Val);
+    OS << ")";
   }
 
   void VisitVector(Vector* Vec) {
@@ -428,6 +468,18 @@ struct NumberOp {
     static void f(Float* X, Float *Y) { X->Val = X->Val / Y->Val; }
   };
 };
+
+// GetSingleArg - Given a macro expression (keyword datum)
+//                return the first argument iff there is only
+//                one argument otherwise returns nullptr
+Value* GetSingleSyntaxArg(Pair* P) {
+  // P->Car is the syntactic keyword
+  Pair* P2 = dyn_cast<Pair>(P->Cdr);
+  if (P2 && isa<Empty>(P2->Cdr)) {
+    return P2->Car;
+  }
+  return nullptr;
+}
 }} // end namespace clang::heavy
 
 namespace clang { namespace heavy { namespace builtin {
@@ -476,7 +528,7 @@ void operator_rec(Context& C, int Len) {
   operator_rec<Op>(C, Len - 1);
 }
 
-void forbid_div_zeros(Context&C, int Len) {
+void forbid_div_zeros(Context& C, int Len) {
   if (Len == 0) return;
   Number* Num = C.popArg<Number>();
   if (Num->isExactZero()) {
@@ -504,7 +556,7 @@ void operator_div(Context& C, int Len) {
   if (Num->isExactZero()) {
     C.discard(Len - 1);
     C.push(Num);
-    return;  
+    return;
   }
   forbid_div_zeros(C, Len - 1);
   if (C.CheckError()) return;
@@ -513,11 +565,44 @@ void operator_div(Context& C, int Len) {
   operator_rec<NumberOp::Div>(C, Len);
 }
 
+void list(Context& C, int Len) {
+  // Returns a *newly allocated* list of its arguments.
+  if (Len == 0) {
+    C.push(C.CreateEmpty());
+    return;
+  };
+  Value* Arg = C.pop();
+  list(C, Len - 1);
+  Value* Next = C.pop();
+  C.push(C.CreatePair(Arg, Next));
+}
+
 }}} // end of namespace clang::heavy::builtin
 
+namespace clang { namespace heavy { namespace builtin_syntax {
+Value* quote(Context& C, Pair* P) {
+  Value* Result = GetSingleSyntaxArg(P);
+  if (!Result) {
+    C.SetError("Invalid quote syntax", P);
+    return C.CreateEmpty();
+  }
+
+  return C.CreateQuote(Result);
+}
+
+Value* quasiquote(Context& C, Pair* Val) {
+  // TODO
+  return C.CreateEmpty();
+}
+
+}}} // end of namespace clang::heavy::builtin_syntax
+
 namespace clang { namespace heavy {
-// This is just a temporary interface for printing
-// top level expressions
+Value* syntax_expand(Context& C, Value* V) {
+  SyntaxExpander S(C);
+  return S.Visit(V);
+}
+
 Value* eval(Context& C, Value* V) {
   C.push(V);
   builtin::eval(C, 1);
@@ -532,8 +617,13 @@ void write(llvm::raw_ostream& OS, Value* V) {
 }} // end namespace clang::heavy
 
 void Context::LoadSystemModule() {
+  // Builtin Syntaxes
+  AddBuiltinSyntax("quote", builtin_syntax::quote);
+
+  // Builtin Procedures
   AddBuiltin("+", builtin::operator_add);
   AddBuiltin("*", builtin::operator_mul);
   AddBuiltin("-", builtin::operator_sub);
   AddBuiltin("/", builtin::operator_div);
+  AddBuiltin("list", builtin::list);
 }

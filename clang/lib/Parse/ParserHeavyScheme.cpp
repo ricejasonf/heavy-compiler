@@ -100,7 +100,7 @@ namespace {
     }
     if (OverflowOccurred)
       return {};
-    if (Negate) 
+    if (Negate)
       Val.negate();
     return Val;
   }
@@ -129,10 +129,13 @@ bool ParserHeavyScheme::Parse() {
       continue;
     }
 
-    Value* Val = eval(Context, Result.get());
+    Value* Val = syntax_expand(Context, Result.get());
+    if (!Context.CheckError()) {
+      Val = eval(Context, Val);
+    }
+
     if (Context.CheckError()) {
       HasError = true;
-      assert(Context.getErrorLocation().isValid());
       CxxParser.Diag(Context.getErrorLocation(), diag::err_heavy_scheme)
         << Context.getErrorMessage();
     } else {
@@ -149,7 +152,7 @@ bool ParserHeavyScheme::Parse() {
 
 ValueResult ParserHeavyScheme::ParseTopLevelExpr() {
   if (Tok.is(tok::r_brace)) {
-    // The end of 
+    // The end of
     //    heavy_scheme { ... }
     return ValueEmpty();
   }
@@ -268,7 +271,7 @@ ValueResult ParserHeavyScheme::ParseVector(SmallVectorImpl<Value*>& Xs) {
   return ParseVector(Xs);
 }
 
-ValueResult ParserHeavyScheme::ParseCharConstant(){
+ValueResult ParserHeavyScheme::ParseCharConstant() {
   llvm_unreachable("TODO");
 }
 
@@ -350,18 +353,19 @@ ValueResult ParserHeavyScheme::ParseString() {
   return Context.CreateString(StringRef(LiteralResult));
 }
 
-ValueResult ParserHeavyScheme::ParseSymbol(){
+ValueResult ParserHeavyScheme::ParseSymbol() {
   StringRef Str = Tok.getRawIdentifier();
+  SourceLocation Loc = Tok.getLocation();
   ConsumeToken();
-  return Context.CreateSymbol(Str);
+  return Context.CreateSymbol(Str, Loc);
 }
 
-ValueResult ParserHeavyScheme::ParseTypename(){
+ValueResult ParserHeavyScheme::ParseTypename() {
   llvm_unreachable("TODO");
   return ValueError();
 }
 
-ValueResult ParserHeavyScheme::ParseCppDecl(){
+ValueResult ParserHeavyScheme::ParseCppDecl() {
   llvm_unreachable("TODO");
   return ValueError();
 }
