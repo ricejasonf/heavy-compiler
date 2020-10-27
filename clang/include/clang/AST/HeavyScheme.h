@@ -105,6 +105,7 @@ public:
            getKind() == Kind::BuiltinSyntax;
   }
 
+  bool isSymbol(StringRef);
   SourceLocation getSourceLocation();
 };
 
@@ -312,6 +313,8 @@ public:
 
   StringRef getVal() { return Val; }
   static bool classof(Value const* V) { return V->getKind() == Kind::Symbol; }
+
+  bool equals(StringRef Str) { return Val == Str; }
 };
 
 class String : public Value {
@@ -539,6 +542,14 @@ public:
 
   static bool classof(Value const* V) { return V->getKind() == Kind::Typename; }
 };
+
+// isSymbol - For matching symbols in syntax builtins
+inline bool Value::isSymbol(StringRef Str) {
+  if (Symbol* S = dyn_cast<Symbol>(this)) {
+    return S.equals(Str);
+  }
+  return false;
+}
 
 inline SourceLocation Value::getSourceLocation() {
   ValueWithSource* VS = nullptr;

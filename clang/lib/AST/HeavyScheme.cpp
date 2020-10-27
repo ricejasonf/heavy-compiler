@@ -184,7 +184,7 @@ private:
     Binding* B = Context.Lookup(P->Car);
     if (!B) return P;
 
-    // Operator is some kind of syntax transformer
+    // Operator might be some kind of syntax transformer
     Value* Operator = B->getValue();
 
     switch (Operator->getKind()) {
@@ -201,6 +201,121 @@ private:
     }
   }
 };
+
+class Quasiquoter : private ValueVisitor<Quasiquoter, Value*> {
+  friend class ValueVisitor<SyntaxExpander, Value*>;
+  clang::heavy::Context& Context;
+
+public:
+
+  Quasiquoter(clang::heavy::Context& C)
+    : Context(C)
+  { }
+
+  // <quasiquotation> 
+  Value* Run(Pair* P) {
+    int Rebuilt = false;
+    // <quasiquotation 1>
+    HandleQuasiquote(P, Rebuilt, /*Depth=*/1);
+  }
+
+private:
+
+  Value* VisitValue(Value* V, bool& Rebuilt, int Depth) {
+    return V;
+  }
+
+  // <qq template D>
+  Value* HandleQQTemplate(Value* V, bool& Rebuilt, int Depth) {
+    assert(Depth > 0 && "Depth should not be negative");
+    if (Depth < 1) {
+      // Unquoting requires parents to be rebuilt
+      Rebuilt = true;
+      return V;
+    }
+    return Visit(V, Rebuilt, Depth);
+  }
+
+  // <quasiquotation D>
+  Value* HandleQuasiquote(Pair* P, bool& Rebuilt, int Depth) {
+    Value* Input = GetSingleSyntaxArg(P);
+    if (!Input) {
+      Context.SetError("Invalid quasiquote syntax", P);
+      return Context.CreateEmpty();
+    }
+    Value* Result = Visit(Input, Rebuilt, Depth);
+    if (!Rebuilt) return Context.CreateQuote(P);
+    return Result;
+  }
+
+  // <unquotation D>
+  Value* HandleUnquote(Pair* P, bool& Rebuilt, int Depth) {
+    Value* Input = GetSingleSyntaxArg(P);
+    if (!Input) {
+      Context.SetError("Invalid unquote syntax", P);
+      return Context.CreateEmpty();
+    }
+
+    Value* Result = HandleQQTemplate(Input, Rebuilt, Depth - 1);
+    if (!Rebuilt) return P;
+    return Result;
+  }
+
+  Value* HandleUnquoteSplicing(Pair* P, Value* Next, bool& Rebuilt,
+                               int Depth) {
+    Value* Input = GetSingleSyntaxArg(P);
+    if (!Input) {
+      Context.SetError("Invalid unquote-splicing syntax", P);
+      return Context.CreateEmpty();
+    }
+    Value* Result = HandleQQTemplate(Input, Rebuilt, Depth - 1);
+    if (!Rebuilt) {
+      return P;
+    }
+
+    if (isa<Pair>(Result)) {
+      // It is an error if unquote-splicing does not result in a list
+      Context.SetError("unquote-splicing must evaluate to a list");
+      return Context.CreateEmpty();
+    }
+    // append Next to Input (during evaluation)
+    return Context.CreatePair(Context.GetBuiltin("append"),
+                              Context.CreatePair(Result, Next));
+  }
+
+  Value* VisitPair(Pair* P, bool& Rebuilt, int Depth) {
+    assert(Depth > 0 && "Depth cannot be greater than zero here.");
+    if (Context.CheckError()) return Context.CreateEmpty();
+    if (P->Car == Quasiquote) {
+      return HandleQuasiquote(P, Rebuilt, Depth + 1);
+    } else if (P->Car->isSymbol("unquote")) {
+      return HandleUnquote(P, Rebuilt, Depth);
+    } else if (isa<Pair>(P->Car) &&
+               cast<Pair>(P->Car)->Car->isSymbol("unquote-splicing")) {
+      Pair* P2 = cast<Pair>(P->Car);
+      return HandleUnquoteSplicing(P2, P->Cdr, Rebuilt, Depth);
+    } else {
+      // Just a regular old pair
+      // <list qq template D>
+      bool CarRebuilt = false;
+      bool CdrRebuilt = false;
+      Value* Car = Visit(P->Car, CarRebuilt, Depth);
+      Value* Cdr = Visit(P->Cdr, CdrRebuilt, Depth);
+      // Portions that are not rebuilt are always literal
+      // '<qq template D>
+      if (!CarRebuilt && CdrRebuilt) Car = Context.CreateQuote(Car);
+      if (!CdrRebuilt && CarRebuilt) Cdr = Context.CreateQuote(Cdr);
+      Rebuilt = CarRebuilt || CdrRebuilt;
+      if (!Rebuilt) return P;
+      return Context.CreateCons(Car, Cdr);
+    }
+  }
+
+  // TODO VisitVector (it appears to be missing from Evaluator too)
+  // TODO implement Context::CreateCons
+  // TODO implement Context::GetBuiltin
+}
+
 
 // Evaluator
 //  - tree evaluator that uses the
@@ -472,6 +587,7 @@ struct NumberOp {
 // GetSingleArg - Given a macro expression (keyword datum)
 //                return the first argument iff there is only
 //                one argument otherwise returns nullptr
+//                (same as `cadr`)
 Value* GetSingleSyntaxArg(Pair* P) {
   // P->Car is the syntactic keyword
   Pair* P2 = dyn_cast<Pair>(P->Cdr);
@@ -590,9 +706,9 @@ Value* quote(Context& C, Pair* P) {
   return C.CreateQuote(Result);
 }
 
-Value* quasiquote(Context& C, Pair* Val) {
-  // TODO
-  return C.CreateEmpty();
+Value* quasiquote(Context& C, Pair* P) {
+  Quasiquoter QQ(C);
+  return QQ->Run(P);
 }
 
 }}} // end of namespace clang::heavy::builtin_syntax
@@ -619,6 +735,7 @@ void write(llvm::raw_ostream& OS, Value* V) {
 void Context::LoadSystemModule() {
   // Builtin Syntaxes
   AddBuiltinSyntax("quote", builtin_syntax::quote);
+  AddBuiltinSyntax("quasiquote", builtin_syntax::quasiquote);
 
   // Builtin Procedures
   AddBuiltin("+", builtin::operator_add);
