@@ -30,6 +30,10 @@ using clang::cast;
 using clang::isa;
 using llvm::ArrayRef;
 
+void Value::dump() {
+  write(llvm::errs(), this);
+}
+
 std::unique_ptr<Context> Context::CreateEmbedded(clang::Parser& P) {
   auto Cptr = std::make_unique<Context>();
   Cptr->CxxParser = &P;
@@ -155,6 +159,41 @@ Binding* Context::Lookup(Symbol* Name, Value* Stack) {
   return Lookup(Name, Next);
 }
 
+namespace clang { namespace heavy {
+struct NumberOp {
+  // These operations always mutate the first operand
+  struct Add {
+    static void f(Integer* X, Integer* Y) { X->Val += Y->Val; }
+    static void f(Float* X, Float *Y) { X->Val = X->Val + Y->Val; }
+  };
+  struct Sub {
+    static void f(Integer* X, Integer* Y) { X->Val -= Y->Val; }
+    static void f(Float* X, Float *Y) { X->Val = X->Val - Y->Val; }
+  };
+  struct Mul {
+    static void f(Integer* X, Integer* Y) { X->Val *= Y->Val; }
+    static void f(Float* X, Float *Y) { X->Val = X->Val * Y->Val; }
+  };
+  struct Div {
+    static void f(Integer* X, Integer* Y) { X-> Val = X->Val.sdiv(Y->Val); }
+    static void f(Float* X, Float *Y) { X->Val = X->Val / Y->Val; }
+  };
+};
+
+// GetSingleArg - Given a macro expression (keyword datum)
+//                return the first argument iff there is only
+//                one argument otherwise returns nullptr
+//                (same as `cadr`)
+Value* GetSingleSyntaxArg(Pair* P) {
+  // P->Car is the syntactic keyword
+  Pair* P2 = dyn_cast<Pair>(P->Cdr);
+  if (P2 && isa<Empty>(P2->Cdr)) {
+    return P2->Car;
+  }
+  return nullptr;
+}
+}} // end namespace clang::heavy
+
 namespace {
 class SyntaxExpander : public ValueVisitor<SyntaxExpander, Value*> {
   friend class ValueVisitor<SyntaxExpander, Value*>;
@@ -203,20 +242,25 @@ private:
 };
 
 class Quasiquoter : private ValueVisitor<Quasiquoter, Value*> {
-  friend class ValueVisitor<SyntaxExpander, Value*>;
+  friend class ValueVisitor<Quasiquoter, Value*>;
   clang::heavy::Context& Context;
+  // Values captured for hygiene purposes
+  Value* Append;
+  Value* ConsSource;
 
 public:
 
   Quasiquoter(clang::heavy::Context& C)
     : Context(C)
+    , Append(C.GetBuiltin("append"))
+    , ConsSource(C.GetBuiltin("cons-source"))
   { }
 
   // <quasiquotation> 
   Value* Run(Pair* P) {
-    int Rebuilt = false;
+    bool Rebuilt = false;
     // <quasiquotation 1>
-    HandleQuasiquote(P, Rebuilt, /*Depth=*/1);
+    return HandleQuasiquote(P, Rebuilt, /*Depth=*/1);
   }
 
 private:
@@ -227,7 +271,7 @@ private:
 
   // <qq template D>
   Value* HandleQQTemplate(Value* V, bool& Rebuilt, int Depth) {
-    assert(Depth > 0 && "Depth should not be negative");
+    assert(Depth >= 0 && "Depth should not be negative");
     if (Depth < 1) {
       // Unquoting requires parents to be rebuilt
       Rebuilt = true;
@@ -244,7 +288,7 @@ private:
       return Context.CreateEmpty();
     }
     Value* Result = Visit(Input, Rebuilt, Depth);
-    if (!Rebuilt) return Context.CreateQuote(P);
+    if (!Rebuilt) return Context.CreateQuote(Input);
     return Result;
   }
 
@@ -275,18 +319,17 @@ private:
 
     if (isa<Pair>(Result)) {
       // It is an error if unquote-splicing does not result in a list
-      Context.SetError("unquote-splicing must evaluate to a list");
+      Context.SetError("unquote-splicing must evaluate to a list", P);
       return Context.CreateEmpty();
     }
     // append Next to Input (during evaluation)
-    return Context.CreatePair(Context.GetBuiltin("append"),
-                              Context.CreatePair(Result, Next));
+    return Context.CreatePair(Append, Context.CreatePair(Result, Next));
   }
 
   Value* VisitPair(Pair* P, bool& Rebuilt, int Depth) {
-    assert(Depth > 0 && "Depth cannot be greater than zero here.");
+    assert(Depth > 0 && "Depth cannot be zero here.");
     if (Context.CheckError()) return Context.CreateEmpty();
-    if (P->Car == Quasiquote) {
+    if (P->Car->isSymbol("quasiquote")) {
       return HandleQuasiquote(P, Rebuilt, Depth + 1);
     } else if (P->Car->isSymbol("unquote")) {
       return HandleUnquote(P, Rebuilt, Depth);
@@ -307,14 +350,16 @@ private:
       if (!CdrRebuilt && CarRebuilt) Cdr = Context.CreateQuote(Cdr);
       Rebuilt = CarRebuilt || CdrRebuilt;
       if (!Rebuilt) return P;
-      return Context.CreateCons(Car, Cdr);
+      return Context.CreatePair(ConsSource,
+              Context.CreatePair(Car,
+                Context.CreatePair(Cdr,
+                  Context.CreatePair(
+                    Context.CreateQuote(P)))));
     }
   }
 
   // TODO VisitVector (it appears to be missing from Evaluator too)
-  // TODO implement Context::CreateCons
-  // TODO implement Context::GetBuiltin
-}
+};
 
 
 // Evaluator
@@ -401,7 +446,8 @@ private:
     if (Context.CheckError()) return;
     Binding* Result = Context.Lookup(S);
     if (!Result) {
-      Context.SetError("Unbound symbol", S);
+      String* Msg = Context.CreateString("Unbound symbol: ", S->getVal());
+      Context.SetError(Msg, S);
       return;
     }
     push(Result->getValue());
@@ -563,41 +609,6 @@ private:
 };
 
 } // end anon namespace
-namespace clang { namespace heavy {
-struct NumberOp {
-  // These operations always mutate the first operand
-  struct Add {
-    static void f(Integer* X, Integer* Y) { X->Val += Y->Val; }
-    static void f(Float* X, Float *Y) { X->Val = X->Val + Y->Val; }
-  };
-  struct Sub {
-    static void f(Integer* X, Integer* Y) { X->Val -= Y->Val; }
-    static void f(Float* X, Float *Y) { X->Val = X->Val - Y->Val; }
-  };
-  struct Mul {
-    static void f(Integer* X, Integer* Y) { X->Val *= Y->Val; }
-    static void f(Float* X, Float *Y) { X->Val = X->Val * Y->Val; }
-  };
-  struct Div {
-    static void f(Integer* X, Integer* Y) { X-> Val = X->Val.sdiv(Y->Val); }
-    static void f(Float* X, Float *Y) { X->Val = X->Val / Y->Val; }
-  };
-};
-
-// GetSingleArg - Given a macro expression (keyword datum)
-//                return the first argument iff there is only
-//                one argument otherwise returns nullptr
-//                (same as `cadr`)
-Value* GetSingleSyntaxArg(Pair* P) {
-  // P->Car is the syntactic keyword
-  Pair* P2 = dyn_cast<Pair>(P->Cdr);
-  if (P2 && isa<Empty>(P2->Cdr)) {
-    return P2->Car;
-  }
-  return nullptr;
-}
-}} // end namespace clang::heavy
-
 namespace clang { namespace heavy { namespace builtin {
 void eval(Context& C, int Len) {
   assert((Len == 1 || Len == 2) && "Invalid arity to builtin `eval`");
@@ -693,6 +704,17 @@ void list(Context& C, int Len) {
   C.push(C.CreatePair(Arg, Next));
 }
 
+void cons_source(Context& C, int Len) {
+  Value* V1 = C.pop();
+  Value* V2 = C.pop();
+  Value* V3 = C.pop();
+  C.push(C.CreatePairWithSource(V1, V2, V3->getSourceLocation()));
+}
+
+void append(Context& C, int Len) {
+  llvm_unreachable("TODO appendable");
+}
+
 }}} // end of namespace clang::heavy::builtin
 
 namespace clang { namespace heavy { namespace builtin_syntax {
@@ -708,7 +730,7 @@ Value* quote(Context& C, Pair* P) {
 
 Value* quasiquote(Context& C, Pair* P) {
   Quasiquoter QQ(C);
-  return QQ->Run(P);
+  return QQ.Run(P);
 }
 
 }}} // end of namespace clang::heavy::builtin_syntax
@@ -743,4 +765,6 @@ void Context::LoadSystemModule() {
   AddBuiltin("-", builtin::operator_sub);
   AddBuiltin("/", builtin::operator_div);
   AddBuiltin("list", builtin::list);
+  AddBuiltin("cons-source", builtin::cons_source);
+  AddBuiltin("append", builtin::append);
 }

@@ -107,6 +107,7 @@ public:
 
   bool isSymbol(StringRef);
   SourceLocation getSourceLocation();
+  void dump();
 };
 
 // ValueWithSource
@@ -501,11 +502,17 @@ class Module : public Value {
     Map.insert(std::make_pair(B->getName()->getVal(), B));
     return B;
   }
+
 public:
+  Value* Lookup(StringRef Str) {
+    return Map.lookup(Str);
+  }
+
   // Returns nullptr if not found
   Value* Lookup(Symbol* Name) {
-    return Map.lookup(Name->getVal());
+    return Lookup(Name->getVal());
   }
+
 
   static bool classof(Value const* V) { return V->getKind() == Kind::Module; }
 };
@@ -546,7 +553,7 @@ public:
 // isSymbol - For matching symbols in syntax builtins
 inline bool Value::isSymbol(StringRef Str) {
   if (Symbol* S = dyn_cast<Symbol>(this)) {
-    return S.equals(Str);
+    return S->equals(Str);
   }
   return false;
 }
@@ -634,6 +641,22 @@ public:
 
   void Init() { } // TODO Remove
   void LoadSystemModule();
+
+  // Returns a Builtin from the SystemModule
+  // for use within builtin syntaxes that wish
+  // to defer to evaluation
+  Builtin* GetBuiltin(StringRef Name) {
+    Binding* B = nullptr;
+    Value* Result = SystemModule->Lookup(Name);
+    if (Result) {
+      if (ForwardRef* F = dyn_cast<ForwardRef>(Result)) {
+        Result = F->Val;
+      }
+      B = cast<Binding>(Result);
+    }
+    assert(B && isa<Builtin>(B->getValue()) && "Internal builtin lookup failed");
+    return cast<Builtin>(B->getValue());
+  }
 
   unsigned GetHostIntWidth() const;
   unsigned GetIntWidth() const {
@@ -807,10 +830,12 @@ inline StringRef Error::getErrorMessage() {
 template <typename Derived, typename RetTy = void>
 class ValueVisitor {
 #define DISPATCH(NAME) \
-  return getDerived().Visit ## NAME(static_cast<NAME*>(V))
+  return getDerived().Visit ## NAME(static_cast<NAME*>(V), \
+                                    std::forward<Args>(args)...)
 #define VISIT_FN(NAME) \
-  template <typename T> \
-  RetTy Visit ## NAME(T* V) { return getDerived().VisitValue(V); }
+  template <typename T, typename ...Args> \
+  RetTy Visit ## NAME(T* V, Args&& ...args) { \
+    return getDerived().VisitValue(V, std::forward<Args>(args)...); }
 
   Derived& getDerived() { return static_cast<Derived&>(*this); }
   Derived const& getDerived() const { return static_cast<Derived>(*this); }
@@ -849,12 +874,14 @@ protected:
   VISIT_FN(Typename)
   VISIT_FN(Vector)
 
-  RetTy VisitPairWithSource(Pair* P) {
-    return getDerived().VisitPair(P);
+  template <typename ...Args>
+  RetTy VisitPairWithSource(Pair* P, Args&& ...args) {
+    return getDerived().VisitPair(P, std::forward<Args>(args)...);
   }
 
 public:
-  RetTy Visit(Value* V) {
+  template <typename ...Args>
+  RetTy Visit(Value* V, Args&& ...args) {
     switch (V->getKind()) {
     case Value::Kind::Undefined:      DISPATCH(Undefined);
     case Value::Kind::Binding:        DISPATCH(Binding);
