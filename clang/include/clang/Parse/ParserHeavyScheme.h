@@ -48,6 +48,7 @@ class ParserHeavyScheme {
 
   ValueResult ParseTopLevelExpr();
   ValueResult ParseExpr();
+  ValueResult ParseExprAbbrev(char const* Name);
 
   ValueResult ParseCharConstant();
   ValueResult ParseCppDecl();

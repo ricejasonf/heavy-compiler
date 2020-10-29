@@ -122,12 +122,11 @@ bool ParserHeavyScheme::Parse() {
     // Keep parsing until we find the end
     // brace (represented by ValueEmpty here)
     if (Result.isUnset()) break;
-    if (HasError) continue;
     if (Result.isInvalid()) {
       ConsumeToken();
       HasError = true;
-      continue;
     }
+    if (HasError) continue;
 
     Value* Val = syntax_expand(Context, Result.get());
     if (!Context.CheckError()) {
@@ -179,6 +178,14 @@ ValueResult ParserHeavyScheme::ParseExpr() {
     return Context.CreateBoolean(false);
   case tok::string_literal:
     return ParseString();
+  case tok::heavy_quote:
+    return ParseExprAbbrev("quote");
+  case tok::heavy_quasiquote:
+    return ParseExprAbbrev("quasiquote");
+  case tok::heavy_unquote:
+    return ParseExprAbbrev("unquote");
+  case tok::heavy_unquote_splicing:
+    return ParseExprAbbrev("unquote-splicing");
   case tok::r_paren: {
     CxxParser.Diag(Tok, diag::err_heavy_scheme)
       << "extraneous closing paren (')')";
@@ -201,6 +208,19 @@ ValueResult ParserHeavyScheme::ParseExpr() {
     return ValueError();
   }
   }
+}
+
+// ParseExprAbbrev - Normalizes abbreviated prefix notation to
+//                   their equivalent syntax e.g. (quote expr)
+ValueResult ParserHeavyScheme::ParseExprAbbrev(char const* Name) {
+  Token Abbrev = Tok;
+  ConsumeToken();
+  ValueResult Result = ParseExpr();
+  if (!Result.isUsable()) return Result;
+
+  Value* S = Context.CreateSymbol(Name, Abbrev.getLocation());
+  Value* P = Context.CreatePair(S, Context.CreatePair(Result.get()));
+  return P;
 }
 
 ValueResult ParserHeavyScheme::ParseListStart() {

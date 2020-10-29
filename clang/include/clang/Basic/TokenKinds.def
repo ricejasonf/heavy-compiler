@@ -858,8 +858,10 @@ KEYWORD(heavy_scheme, KEYHEAVY)
 
 // HeavyScheme specific punctuators
 PUNCTUATOR(heavy_vector_lparen, "#(")
-PUNCTUATOR(heavy_grave, "`")
-PUNCTUATOR(heavy_comma_at, ",@")
+PUNCTUATOR(heavy_quote, "'")
+PUNCTUATOR(heavy_quasiquote, "`")
+PUNCTUATOR(heavy_unquote, ",")
+PUNCTUATOR(heavy_unquote_splicing, ",@")
 PUNCTUATOR(heavy_true, "#t")
 PUNCTUATOR(heavy_false, "#f")
 

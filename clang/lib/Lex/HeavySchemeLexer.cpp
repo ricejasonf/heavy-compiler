@@ -73,15 +73,13 @@ namespace {
   }
 
   bool isDelimiter(char c) {
-    // TODO
-    // We could make a table similar to clang::charinfo::InfoTable
-    // for more efficient processing here and possibly elsewhere.
     switch(c) {
     case 0:
-    case ',': case '\'': case '"': case '`': case ';':
+    case '"': case ';':
     case '(': case ')':
     case '[': case ']':
     case '{': case '}':
+    case '|':
       return true;
     }
 
@@ -151,13 +149,21 @@ void HeavySchemeLexer::Lex(Token& Tok) {
   case ']':
     Kind = tok::r_square;
     break;
-  case ',':
-    // TODO handle quasiquotation token '@,'
-    Kind = tok::comma;
+  case '\'':
+    Kind = tok::heavy_quote;
     break;
   case '`':
-    Kind = tok::heavy_grave;
+    Kind = tok::heavy_quasiquote;
     break;
+  case ',': {
+    if (*(CurPtr + 1) == '@') {
+      Kind = tok::heavy_unquote_splicing;
+      ++CurPtr;
+    } else {
+      Kind = tok::heavy_unquote;
+    }
+    break;
+  }
   default:
     Kind = tok::unknown;
     break;
@@ -168,14 +174,14 @@ void HeavySchemeLexer::Lex(Token& Tok) {
 }
 
 void HeavySchemeLexer::LexIdentifier(Token& Tok, const char *CurPtr) {
-  bool IsValid = true;
+  bool IsInvalid = false;
   char c = *CurPtr;
   while (!isDelimiter(c)) {
-    IsValid |= isExtendedAlphabet(c);
+    IsInvalid |= !isExtendedAlphabet(c);
     c = ConsumeChar(CurPtr);
   }
 
-  if (!IsValid) {
+  if (IsInvalid) {
     return LexUnknown(Tok, CurPtr);
   }
 
