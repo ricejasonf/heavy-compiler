@@ -159,6 +159,33 @@ Binding* Context::Lookup(Symbol* Name, Value* Stack) {
   return Lookup(Name, Next);
 }
 
+Binding* Context::CreateGlobal(Symbol* S, Value *V) {
+  Binding* B    = Context.Lookup(S);
+  if (B) {
+    B->Val = V;
+    return B;
+  }
+
+  Binding* B    = CreateBinding(S, V);
+  Value*   Car  = cast<Pair>(EnvStack)->Car;
+  Module*  M    = cast<Module>(Car);
+  M->Insert(B);
+  return B;
+}
+
+Builtin* Context::GetBuiltin(StringRef Name) {
+  Binding* B = nullptr;
+  Value* Result = SystemModule->Lookup(Name);
+  if (Result) {
+    if (ForwardRef* F = dyn_cast<ForwardRef>(Result)) {
+      Result = F->Val;
+    }
+    B = cast<Binding>(Result);
+  }
+  assert(B && isa<Builtin>(B->getValue()) && "Internal builtin lookup failed");
+  return cast<Builtin>(B->getValue());
+}
+
 namespace clang { namespace heavy {
 struct NumberOp {
   // These operations always mutate the first operand
@@ -207,15 +234,33 @@ public:
     : Context(C)
   {
     OldEnvStack = Context.EnvStack;
+    OldIsTopLevel = Context.IsTopLevel;
   }
 
   ~SyntaxExpander() {
     Context.EnvStack = OldEnvStack;
+    Context.IsTopTevel = OldIsTopLevel;
+  }
+
+  Value* VisitTopLevel(Value* V) {
+    Context.IsTopLevel = true;
+    return Visit(V);
   }
 
 private:
   Value* VisitValue(Value* V) {
     return V;
+  }
+
+  Value* HandleCallArgs(Pair *P) {
+    Value* CarResult = Visit(P->Car);
+    Value* CdrResult = HandleCallArgs(P->Cdr);
+    // TODO maybe here we can indicate tail position
+    if (!isa<Empty>(CdrResult) && !isa<Pair>(CdrResult)) {
+      Context.SetError("Illegal dot syntax in call expression", P);
+      return;
+    }
+    return Context.CreatePair(CarResult, CdrResult);
   }
 
   Value* VisitPair(Pair* P) {
@@ -234,8 +279,11 @@ private:
       case Value::Kind::Syntax:
         llvm_unreachable("TODO");
         return Context.CreateEmpty();
+      case Value::Kind::Define:
+        return HandleDefine(P);
       default:
-        // not a syntax operator
+        Context.IsTopLevel = false;
+        HandleCallArgs(P);
         return P;
     }
   }
@@ -256,7 +304,7 @@ public:
     , ConsSource(C.GetBuiltin("cons-source"))
   { }
 
-  // <quasiquotation> 
+  // <quasiquotation>
   Value* Run(Pair* P) {
     bool Rebuilt = false;
     // <quasiquotation 1>
@@ -718,6 +766,34 @@ void append(Context& C, int Len) {
 }}} // end of namespace clang::heavy::builtin
 
 namespace clang { namespace heavy { namespace builtin_syntax {
+
+Value* define(Context& C, Pair* P) {
+  Pair *P2  = dyn_cast<Pair>(P->Cdr);
+  Symbol* S = nullptr;
+  Value*  V = nullptr;
+  if (!P2) return C.SetError("Invalid define syntax", P);
+  if (Pair* LambdaSpec = dyn_cast<Pair>(P2->Car)) {
+    llvm_unreachable("TODO");
+#if 0 // CheckLambda would return nullptr
+    S = dyn_cast<Symbol>(LambdaSpec->Car);
+    V = C.CheckLambda(/*LambdaParams=*/LambdaSpec->Cdr,
+                      /*LambdaBody=*/P2->Cdr, 
+                      /*LambdaName=*/S);
+#endif
+  } else {
+    S = dyn_cast<Symbol>(P2->Car);
+    Value* V = GetSingleSyntaxArg(P2);
+  }
+  if (!S || !V) return C.SetError("Invalid define syntax", P);
+  if (C.IsTopLevel()) {
+    C.CreateGlobal(S, V);
+  } else {
+    // Handle internal definitions inside
+    // lambda syntax
+    return C.SetError("Unexpected define", P);
+  }
+}
+
 Value* quote(Context& C, Pair* P) {
   Value* Result = GetSingleSyntaxArg(P);
   if (!Result) {
@@ -758,6 +834,7 @@ void Context::LoadSystemModule() {
   // Builtin Syntaxes
   AddBuiltinSyntax("quote", builtin_syntax::quote);
   AddBuiltinSyntax("quasiquote", builtin_syntax::quasiquote);
+  AddBuiltinSyntax("define", builtin::define)
 
   // Builtin Procedures
   AddBuiltin("+", builtin::operator_add);

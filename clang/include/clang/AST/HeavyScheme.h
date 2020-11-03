@@ -618,6 +618,7 @@ public:
   Value* EnvStack;
   Value* ErrorHandlerStack;
   Value* Err = nullptr;
+  bool IsTopLevel = true; // used by SyntaxExpander
 
 private:
   //bool ProcessFormals(Value* V, BindingRegion* Region, int& Arity);
@@ -645,18 +646,7 @@ public:
   // Returns a Builtin from the SystemModule
   // for use within builtin syntaxes that wish
   // to defer to evaluation
-  Builtin* GetBuiltin(StringRef Name) {
-    Binding* B = nullptr;
-    Value* Result = SystemModule->Lookup(Name);
-    if (Result) {
-      if (ForwardRef* F = dyn_cast<ForwardRef>(Result)) {
-        Result = F->Val;
-      }
-      B = cast<Binding>(Result);
-    }
-    assert(B && isa<Builtin>(B->getValue()) && "Internal builtin lookup failed");
-    return cast<Builtin>(B->getValue());
-  }
+  Builtin* GetBuiltin(StringRef Name);
 
   unsigned GetHostIntWidth() const;
   unsigned GetIntWidth() const {
@@ -679,6 +669,8 @@ public:
     return Lookup(S);
   }
 
+  Binding* CreateGlobal(Symbol* S, Value *V);
+
   // Check Error
   //  - Returns true if there is an error or exception
   //  - Builtins will have to check this to stop evaluation
@@ -687,10 +679,11 @@ public:
     return Err ? true : false;
   }
 
-  void SetError(Value* E) {
+  Value* SetError(Value* E) {
     assert(isa<Error>(E) || isa<Exception>(E));
     Err = E;
     EvalStack.push(E);
+    return CreateEmpty();
   }
 
   void SetError(SourceLocation Loc, String* S, Value* V) {
