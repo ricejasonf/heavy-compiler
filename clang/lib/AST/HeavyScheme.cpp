@@ -159,16 +159,32 @@ Binding* Context::Lookup(Symbol* Name, Value* Stack) {
   return Lookup(Name, Next);
 }
 
-Binding* Context::CreateGlobal(Symbol* S, Value *V) {
-  Binding* B    = Context.Lookup(S);
+// Returns Binding or Undefined on error
+Value* Context::CreateGlobal(Symbol* S, Value *V) {
+  // A module at the top of the EnvStack is mutable
+  Module* M = nullptr;
+  Value* EnvRest = nullptr;
+  if (isa<Pair>(EnvStack)) {
+    Value* EnvTop  = cast<Pair>(EnvStack)->Car;
+    EnvRest = cast<Pair>(EnvStack)->Cdr;
+    M = dyn_cast<Module>(EnvTop);
+  }
+  if (!M) return SetError("Define used in immutable environment", S);
+
+  // If the name already exists in the current module
+  // then it behaves like `set!`
+  Binding* B = M->Lookup(S);
   if (B) {
     B->Val = V;
     return B;
   }
 
-  Binding* B    = CreateBinding(S, V);
-  Value*   Car  = cast<Pair>(EnvStack)->Car;
-  Module*  M    = cast<Module>(Car);
+  // Top Level definitions may not shadow names in
+  // the parent environment
+  B = Lookup(S, EnvRest);
+  if (B) return SetError("Define overwrites immutable location", S);
+
+  B = CreateBinding(S, V);
   M->Insert(B);
   return B;
 }
@@ -225,21 +241,27 @@ namespace {
 class SyntaxExpander : public ValueVisitor<SyntaxExpander, Value*> {
   friend class ValueVisitor<SyntaxExpander, Value*>;
   clang::heavy::Context& Context;
-  // The "syntactic environment" extends
-  // the current top level environment
+  // We use RAII to make the current call to `eval`
+  // set the environment in Context
   Value* OldEnvStack;
+  bool OldIsTopLevel;
 
 public:
-  SyntaxExpander(clang::heavy::Context& C)
+  SyntaxExpander(clang::heavy::Context& C, Value* EnvStack = nullptr)
     : Context(C)
   {
-    OldEnvStack = Context.EnvStack;
     OldIsTopLevel = Context.IsTopLevel;
+    if (EnvStack) {
+      OldEnvStack = Context.EnvStack;
+      Context.EnvStack = EnvStack;
+    } else {
+      OldEnvStack = Context.EnvStack;
+    }
   }
 
   ~SyntaxExpander() {
     Context.EnvStack = OldEnvStack;
-    Context.IsTopTevel = OldIsTopLevel;
+    Context.IsTopLevel = OldIsTopLevel;
   }
 
   Value* VisitTopLevel(Value* V) {
@@ -252,14 +274,14 @@ private:
     return V;
   }
 
-  Value* HandleCallArgs(Pair *P) {
+  Value* HandleCallArgs(Value *V) {
+    if (isa<Empty>(V)) return V;
+    if (!isa<Pair>(V)) {
+      return Context.SetError("Improper list as call expression", V);
+    }
+    Pair* P = cast<Pair>(V);
     Value* CarResult = Visit(P->Car);
     Value* CdrResult = HandleCallArgs(P->Cdr);
-    // TODO maybe here we can indicate tail position
-    if (!isa<Empty>(CdrResult) && !isa<Pair>(CdrResult)) {
-      Context.SetError("Illegal dot syntax in call expression", P);
-      return;
-    }
     return Context.CreatePair(CarResult, CdrResult);
   }
 
@@ -279,8 +301,6 @@ private:
       case Value::Kind::Syntax:
         llvm_unreachable("TODO");
         return Context.CreateEmpty();
-      case Value::Kind::Define:
-        return HandleDefine(P);
       default:
         Context.IsTopLevel = false;
         HandleCallArgs(P);
@@ -418,16 +438,17 @@ private:
 class Evaluator : public ValueVisitor<Evaluator> {
   friend class ValueVisitor<Evaluator>;
   clang::heavy::Context& Context;
-  // We use RAII to make the current call to `eval`
-  // set the environment in Context
-  Value* OldEnvStack;
 
 public:
-  Evaluator(clang::heavy::Context& C, Value* Env)
+  Evaluator(clang::heavy::Context& C, Value* EnvStack = nullptr)
     : Context(C)
   {
-    OldEnvStack = Context.EnvStack;
-    Context.EnvStack = Env;
+    if (EnvStack) {
+      OldEnvStack = Context.EnvStack;
+      Context.EnvStack = EnvStack;
+    } else {
+      OldEnvStack = Context.EnvStack;
+    }
   }
 
   ~Evaluator() {
@@ -661,11 +682,16 @@ namespace clang { namespace heavy { namespace builtin {
 void eval(Context& C, int Len) {
   assert((Len == 1 || Len == 2) && "Invalid arity to builtin `eval`");
   Value* ExprOrDef = C.EvalStack.pop();
-  Environment* Env = (Len == 2) ? C.popArg<Environment>() : nullptr;
-  Value* EnvStack = Env ? Env->EnvStack : C.EnvStack;
+  Value* EnvStack = (Len == 2) ? C.EvalStack.pop() : nullptr;
+  if (Environment* E = dyn_cast_or_null<Environment>(EnvStack)) {
+    // nest the Environment in the EnvStack
+    EnvStack = C.CreatePair(E);
+  }
+
+  Value* Val = syntax_expand(ExprOrDef, EnvStack);
   if (C.CheckError()) return;
-  Evaluator Eval(C, EnvStack);
-  Eval.Visit(ExprOrDef);
+  Evaluator Eval(C);
+  Eval.Visit(Val);
 }
 
 template <typename Op>
@@ -774,19 +800,23 @@ Value* define(Context& C, Pair* P) {
   if (!P2) return C.SetError("Invalid define syntax", P);
   if (Pair* LambdaSpec = dyn_cast<Pair>(P2->Car)) {
     llvm_unreachable("TODO");
-#if 0 // CheckLambda would return nullptr
     S = dyn_cast<Symbol>(LambdaSpec->Car);
+#if 0 // CheckLambda would return nullptr
     V = C.CheckLambda(/*LambdaParams=*/LambdaSpec->Cdr,
-                      /*LambdaBody=*/P2->Cdr, 
+                      /*LambdaBody=*/P2->Cdr,
                       /*LambdaName=*/S);
 #endif
   } else {
     S = dyn_cast<Symbol>(P2->Car);
-    Value* V = GetSingleSyntaxArg(P2);
+    V = GetSingleSyntaxArg(P2);
   }
   if (!S || !V) return C.SetError("Invalid define syntax", P);
-  if (C.IsTopLevel()) {
-    C.CreateGlobal(S, V);
+  if (C.IsTopLevel) {
+    // create call expr with the core define op
+    // TODO refactor to use bytecode or something
+    //      this is lame
+    return C.CreatePair(C.GetBuiltin("__define"),
+            C.CreatePair(C.CreateGlobal(S, V)));
   } else {
     // Handle internal definitions inside
     // lambda syntax
@@ -811,15 +841,31 @@ Value* quasiquote(Context& C, Pair* P) {
 
 }}} // end of namespace clang::heavy::builtin_syntax
 
+namespace clang { namespace heavy { namespace builtin_core {
+  // top level define that just evaluates the
+  // RHS of the Binding object
+  void define(Context& C, int len) {
+    Value* V = C.EvalStack.pop();
+    assert(isa<Binding>(V) && "Internal define requires binding object");
+    Binding* B = cast<Binding>(V);
+    // This is really lame
+    Value* Result = eval(C, B->getValue());
+    C.EvalStack.push(Result);
+  }
+}}} // end of namespace clang::heavy::builtin_core
+
+
 namespace clang { namespace heavy {
-Value* syntax_expand(Context& C, Value* V) {
-  SyntaxExpander S(C);
+Value* syntax_expand(Context& C, Value* V, EnvStack *E) {
+  SyntaxExpander S(C, E);
   return S.Visit(V);
 }
 
-Value* eval(Context& C, Value* V) {
+Value* eval(Context& C, Value* V, EnvStack* E) {
+  if (E) C.push(E);
   C.push(V);
-  builtin::eval(C, 1);
+  int ArgCount = E ? 2 : 1;
+  builtin::eval(C, ArgCount);
   return C.pop();
 }
 
@@ -832,16 +878,20 @@ void write(llvm::raw_ostream& OS, Value* V) {
 
 void Context::LoadSystemModule() {
   // Builtin Syntaxes
-  AddBuiltinSyntax("quote", builtin_syntax::quote);
-  AddBuiltinSyntax("quasiquote", builtin_syntax::quasiquote);
-  AddBuiltinSyntax("define", builtin::define)
+  AddBuiltinSyntax("quote",       builtin_syntax::quote);
+  AddBuiltinSyntax("quasiquote",  builtin_syntax::quasiquote);
+  AddBuiltinSyntax("define",      builtin_syntax::define);
 
   // Builtin Procedures
-  AddBuiltin("+", builtin::operator_add);
-  AddBuiltin("*", builtin::operator_mul);
-  AddBuiltin("-", builtin::operator_sub);
-  AddBuiltin("/", builtin::operator_div);
-  AddBuiltin("list", builtin::list);
-  AddBuiltin("cons-source", builtin::cons_source);
-  AddBuiltin("append", builtin::append);
+  AddBuiltin("+",                 builtin::operator_add);
+  AddBuiltin("*",                 builtin::operator_mul);
+  AddBuiltin("-",                 builtin::operator_sub);
+  AddBuiltin("/",                 builtin::operator_div);
+  AddBuiltin("list",              builtin::list);
+  AddBuiltin("cons-source",       builtin::cons_source);
+  AddBuiltin("append",            builtin::append);
+
+  // Core forms
+  // TODO these should probably be refactored to opcodes
+  AddBuiltin("__define",          builtin_core::define);
 }

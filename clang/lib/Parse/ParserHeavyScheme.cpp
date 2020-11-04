@@ -128,10 +128,7 @@ bool ParserHeavyScheme::Parse() {
     }
     if (HasError) continue;
 
-    Value* Val = syntax_expand(Context, Result.get());
-    if (!Context.CheckError()) {
-      Val = eval(Context, Val);
-    }
+    Val = eval(Context, Result.get());
 
     if (Context.CheckError()) {
       HasError = true;

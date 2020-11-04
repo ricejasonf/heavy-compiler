@@ -50,8 +50,8 @@ inline auto ValueEmpty() { return ValueResult(false); }
 // may be invalidated on a call to garbage
 // collection if it is not bound to a variable
 // at top level scope
-Value* eval(Context&, Value* V);
-Value* syntax_expand(Context&, Value* V);
+Value* eval(Context&, Value* V, Value* EnvStack = nullptr);
+Value* syntax_expand(Context&, Value* V, Value* EnvStack = nullptr);
 void write(raw_ostream&, Value*);
 
 // Value - A result of an evaluation
@@ -167,30 +167,22 @@ public:
 };
 
 // Environment
-//  - Represents a Top Level Environment or
-//    an Environment Specifier created with (environment ...)
+//  - Represents an Environment Specifier created with (environment ...)
+//    or the default environment
 //  - Stacks Modules the bottom of which is the SystemModule.
 //  - Only the top module can be mutable
-//  - Adding definitions that shadow parent environments
+//  - Adding top level definitions that shadow parent environments
 //    is forbidden
 class Environment : public Value {
   friend class Context;
 
-public:
   Value* EnvStack;
-  bool IsMutable = false;
 
+public:
   Environment(Value* Stack)
     : Value(Kind::Environment)
     , EnvStack(Stack)
   { }
-
-#if 0
-  // not used
-  Value* Lookup(Symbol* Name) {
-    return Context::Lookup(Name, Stack);
-  }
-#endif
 
   //Binding* AddDefinition(Symbol* Name, ...
   static bool classof(Value const* V)
@@ -474,6 +466,7 @@ public:
     return Val;
   }
 
+#if 0
   // TODO not sure if this is needed
   Value* Lookup(Symbol* OtherName) {
     if (Name->getVal() == OtherName->getVal()) {
@@ -481,6 +474,7 @@ public:
     }
     return nullptr;
   }
+#endif
 
   static bool classof(Value const* V) { return V->getKind() == Kind::Binding; }
 };
@@ -491,7 +485,7 @@ class Module : public Value {
   // TODO An IdentifierTable would probably be
   //      better than using the strings themselves
   //      as keys.
-  llvm::StringMap<Value*, AllocatorTy&> Map;
+  llvm::StringMap<Binding*, AllocatorTy&> Map;
 
   Module(AllocatorTy& A)
     : Value(Kind::Module)
@@ -503,17 +497,17 @@ class Module : public Value {
     return B;
   }
 
-public:
-  Value* Lookup(StringRef Str) {
+  // Returns nullptr if not found
+  Binding* Lookup(StringRef Str) {
     return Map.lookup(Str);
   }
 
   // Returns nullptr if not found
-  Value* Lookup(Symbol* Name) {
+  Binding* Lookup(Symbol* Name) {
     return Lookup(Name->getVal());
   }
 
-
+public:
   static bool classof(Value const* V) { return V->getKind() == Kind::Module; }
 };
 
@@ -669,7 +663,7 @@ public:
     return Lookup(S);
   }
 
-  Binding* CreateGlobal(Symbol* S, Value *V);
+  Value* CreateGlobal(Symbol* S, Value *V);
 
   // Check Error
   //  - Returns true if there is an error or exception
@@ -686,21 +680,21 @@ public:
     return CreateEmpty();
   }
 
-  void SetError(SourceLocation Loc, String* S, Value* V) {
-    SetError(CreateError(Loc, S, CreatePair(V)));
+  Value* SetError(SourceLocation Loc, String* S, Value* V) {
+    return SetError(CreateError(Loc, S, CreatePair(V)));
   }
 
-  void SetError(String* S, Value* V) {
+  Value* SetError(String* S, Value* V) {
     SourceLocation Loc = V->getSourceLocation();
-    SetError(CreateError(Loc, S, CreatePair(V)));
+    return SetError(CreateError(Loc, S, CreatePair(V)));
   }
 
-  void SetError(StringRef S, Value* V) {
-    SetError(CreateString(S), V);
+  Value* SetError(StringRef S, Value* V) {
+    return SetError(CreateString(S), V);
   }
 
-  void SetError(SourceLocation Loc, StringRef S, Value* V) {
-    SetError(Loc, CreateString(S), V);
+  Value* SetError(SourceLocation Loc, StringRef S, Value* V) {
+    return SetError(Loc, CreateString(S), V);
   }
 
   SourceLocation getErrorLocation() {
