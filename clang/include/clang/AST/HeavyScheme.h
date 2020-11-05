@@ -450,6 +450,8 @@ public:
 class Binding : public Value {
   friend class Context;
   Symbol* Name;
+
+public:
   Value* Val;
 
   Binding(Symbol* N, Value* V)
@@ -458,7 +460,6 @@ class Binding : public Value {
     , Val(V)
   { }
 
-public:
   Symbol* getName() {
     return Name;
   }
@@ -602,6 +603,10 @@ public:
 class Context {
   AllocatorTy TrashHeap;
 
+  // "static" values
+  Undefined Undefined_ = {};
+  Empty     Empty_ = {};
+
   // EnvStack
   //  - Should be at least one element on top of
   //    an Environment
@@ -660,7 +665,9 @@ public:
   // Lookup
   //  - Takes a Symbol or nullptr
   //  - Returns a matching Binder or nullptr
-  static Binding* Lookup(Symbol* Name, Value* Stack, Value* NextStack);
+  static Binding* Lookup(Symbol* Name,
+                         Value* Stack,
+                         Value* NextStack = nullptr);
   Binding* Lookup(Symbol* Name) {
     return Lookup(Name, EnvStack);
   }
@@ -741,33 +748,35 @@ public:
     return EvalStack.top();
   }
 
-  Boolean*  CreateBoolean(bool V) { return new (TrashHeap) Boolean(V); }
-  Char*     CreateChar(char V) { return new (TrashHeap) Char(V); }
-  CppDecl*  CreateCppDecl(Decl* V) { return new (TrashHeap) CppDecl(V); }
-  Empty*    CreateEmpty() { return new (TrashHeap) Empty(); }
-  Integer*  CreateInteger(llvm::APInt V);
-  Integer*  CreateInteger(int64_t X) {
+  Undefined*  CreateUndefined() { return &Undefined_; }
+  Boolean*    CreateBoolean(bool V) { return new (TrashHeap) Boolean(V); }
+  Char*       CreateChar(char V) { return new (TrashHeap) Char(V); }
+  CppDecl*    CreateCppDecl(Decl* V) { return new (TrashHeap) CppDecl(V); }
+  Empty*      CreateEmpty() { return &Empty_; }
+  Integer*    CreateInteger(llvm::APInt V);
+  Integer*    CreateInteger(int64_t X) {
     int BitWidth = GetIntWidth();
     llvm::APInt Val(BitWidth, X, /*IsSigned=*/true);
     return CreateInteger(Val);
   }
-  Float*    CreateFloat(llvm::APFloat V);
-  Pair*     CreatePair(Value* V1, Value* V2) {
+  Float*      CreateFloat(llvm::APFloat V);
+  Pair*       CreatePair(Value* V1, Value* V2) {
     return new (TrashHeap) Pair(V1, V2);
   }
-  Pair*     CreatePair(Value* V1) {
+  Pair*       CreatePair(Value* V1) {
     return new (TrashHeap) Pair(V1, CreateEmpty());
   }
   PairWithSource* CreatePairWithSource(Value* V1, Value* V2,
                                        SourceLocation Loc) {
     return new (TrashHeap) PairWithSource(V1, V2, Loc);
   }
-  String*   CreateString(StringRef S);
-  String*   CreateString(StringRef S1, StringRef S2);
-  Symbol*   CreateSymbol(StringRef V, SourceLocation Loc = SourceLocation()) {
+  String*     CreateString(StringRef S);
+  String*     CreateString(StringRef S1, StringRef S2);
+  Symbol*     CreateSymbol(StringRef V,
+                         SourceLocation Loc = SourceLocation()) {
     return new (TrashHeap) Symbol(V, Loc);
   }
-  Vector*   CreateVector(ArrayRef<Value*> Xs);
+  Vector*     CreateVector(ArrayRef<Value*> Xs);
   Environment* CreateEnvironment(Value* Stack) {
     return new (TrashHeap) Environment(Stack);
   }

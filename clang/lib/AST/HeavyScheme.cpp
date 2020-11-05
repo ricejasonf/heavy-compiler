@@ -844,8 +844,11 @@ namespace clang { namespace heavy { namespace builtin_core {
     Binding* B = cast<Binding>(V);
     // This is really lame
     Evaluator Eval(C);
-    Value* Result = Eval.Visit(B->getValue());
-    C.EvalStack.push(Result);
+    // the evaluator pushes the result on the stack
+    Eval.Visit(B->getValue());
+    V = C.EvalStack.pop();
+    B->Val = V;
+    C.EvalStack.push(C.CreateUndefined());
   }
 }}} // end of namespace clang::heavy::builtin_core
 

@@ -159,7 +159,7 @@ ParserHeavyScheme::LoadEmbeddedEnv(DeclContext* DC) {
   auto itr = EmbeddedEnvs.find(DC);
   if (itr != EmbeddedEnvs.end()) return itr->second;
   Value* Env;
-  if (DC.isTranslationUnit()) {
+  if (DC->isTranslationUnit()) {
     Env = Context.SystemEnvironment;
   } else {
     Env = LoadEmbeddedEnv(DC->getParent());
