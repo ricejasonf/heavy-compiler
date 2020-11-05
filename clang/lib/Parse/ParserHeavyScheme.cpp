@@ -156,8 +156,8 @@ bool ParserHeavyScheme::Parse() {
 // FIXME Breakout out along with the "Parse" function
 heavy::Value*
 ParserHeavyScheme::LoadEmbeddedEnv(DeclContext* DC) {
-  auto itr = EmbeddedEnvs.find(DC);
-  if (itr != EmbeddedEnvs.end()) return itr->second;
+  auto itr = Context.EmbeddedEnvs.find(DC);
+  if (itr != Context.EmbeddedEnvs.end()) return itr->second;
   Value* Env;
   if (DC->isTranslationUnit()) {
     Env = Context.SystemEnvironment;
@@ -165,7 +165,7 @@ ParserHeavyScheme::LoadEmbeddedEnv(DeclContext* DC) {
     Env = LoadEmbeddedEnv(DC->getParent());
   }
   Env = Context.CreatePair(Context.CreateModule(), Env);
-  EmbeddedEnvs[DC] = Env;
+  Context.EmbeddedEnvs[DC] = Env;
   return Env;
 }
 

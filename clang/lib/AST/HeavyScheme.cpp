@@ -32,6 +32,7 @@ using llvm::ArrayRef;
 
 void Value::dump() {
   write(llvm::errs(), this);
+  llvm::errs() << '\n';
 }
 
 std::unique_ptr<Context> Context::CreateEmbedded(clang::Parser& P) {
@@ -585,11 +586,11 @@ private:
   void PrintFormattedWhitespace() {
     // We could handle indentation and new lines
     // more dynamically here probably
-    OS << '\n';
     assert(IndentationLevel < 100 && "IndentationLevel overflow suspected");
 
+    OS << '\n';
     for (unsigned i = 0; i < IndentationLevel; ++i) {
-      OS << "  ";
+      OS << ' ';
     }
   }
 
@@ -668,6 +669,22 @@ private:
     // TODO we might want to escape special
     // characters other than newline
     OS << '"' << S->Val << '"';
+  }
+
+  void VisitModule(Module* M) {
+    OS << "Module() {\n";
+    ++IndentationLevel;
+    for (Binding* B : *M) {
+      PrintFormattedWhitespace();
+      OS << B->getName()->getVal() << ": ";
+      Visit(B->getValue());
+    }
+    --IndentationLevel;
+    PrintFormattedWhitespace();
+    OS << "}";
+    // TEMP dont print out the pointer value
+    OS << " " << ((size_t) M);
+    PrintFormattedWhitespace();
   }
 };
 

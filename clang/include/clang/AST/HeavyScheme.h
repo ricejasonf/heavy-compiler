@@ -20,7 +20,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/iterator_range.h"
+#include "llvm/ADT/iterator.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/TrailingObjects.h"
@@ -29,6 +29,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <utility>
 
 namespace clang {
@@ -483,11 +484,11 @@ public:
 
 class Module : public Value {
   friend class Context;
-
+  using MapTy = llvm::StringMap<Binding*, AllocatorTy&>;
   // TODO An IdentifierTable would probably be
   //      better than using the strings themselves
   //      as keys.
-  llvm::StringMap<Binding*, AllocatorTy&> Map;
+  MapTy Map;
 
   Module(AllocatorTy& A)
     : Value(Kind::Module)
@@ -511,6 +512,32 @@ class Module : public Value {
 
 public:
   static bool classof(Value const* V) { return V->getKind() == Kind::Module; }
+
+  class Iterator : public llvm::iterator_facade_base<
+                                              Iterator, 
+                                              std::forward_iterator_tag,
+                                              Binding*>
+  {
+    friend class Module;
+    using ItrTy = typename MapTy::iterator;
+    ItrTy Itr;
+    Iterator(ItrTy I) : Itr(I) { }
+
+  public:
+    Iterator& operator=(Iterator const& R) { Itr = R.Itr; return *this; }
+    bool operator==(Iterator const& R) const { return Itr == R.Itr; }
+    Binding* const& operator*() const { return (*Itr).getValue(); }
+    Binding*& operator*() { return (*Itr).getValue(); }
+    Iterator& operator++() { ++Itr; return *this; }
+  };
+
+  Iterator begin() {
+    return Iterator(Map.begin());
+  }
+
+  Iterator end() {
+    return Iterator(Map.end());
+  }
 };
 
 // ForwardRef - used for garbage collection
@@ -617,6 +644,7 @@ public:
   Module* SystemModule;
   Environment* SystemEnvironment;
   Value* EnvStack;
+  std::unordered_map<void*, Value*> EmbeddedEnvs;
   Value* Err = nullptr;
   bool IsTopLevel = true;
 

@@ -18,7 +18,6 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Parse/Parser.h"
 #include <string>
-#include <unordered_map>
 
 namespace clang {
 
@@ -37,7 +36,6 @@ class ParserHeavyScheme {
   Token Tok = {};
   SourceLocation PrevTokLocation;
   std::string LiteralResult = {};
-  std::unordered_map<DeclContext*, Value*> EmbeddedEnvs;
 
   // Gets or creates an environment for a clang::DeclContext
   Value* LoadEmbeddedEnv(DeclContext*);
