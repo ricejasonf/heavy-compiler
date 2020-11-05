@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/DeclBase.h" // for DeclContext
 #include "clang/AST/HeavyScheme.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Parse/ParseDiagnostic.h"
@@ -106,6 +107,8 @@ namespace {
   }
 }
 
+// FIXME Breakout this bootstrapping code
+//       to make the real parsing stand alone
 bool ParserHeavyScheme::Parse() {
   PP.InitHeavySchemeLexer();
 
@@ -114,6 +117,10 @@ bool ParserHeavyScheme::Parse() {
     CxxParser.Diag(Tok, diag::err_expected) << tok::l_brace;
     return true;
   }
+
+  // Load the environment for the current DeclContext
+  DeclContext* DC = CxxParser.getActions().CurContext;
+  Context.EnvStack = LoadEmbeddedEnv(DC);
 
   ValueResult Result;
   bool HasError = false;
@@ -128,7 +135,7 @@ bool ParserHeavyScheme::Parse() {
     }
     if (HasError) continue;
 
-    Val = eval(Context, Result.get());
+    Value* Val = eval(Context, Result.get());
 
     if (Context.CheckError()) {
       HasError = true;
@@ -144,6 +151,22 @@ bool ParserHeavyScheme::Parse() {
   // Return control to C++ Lexer
   PP.FinishHeavySchemeLexer();
   return Result.isInvalid();
+}
+
+// FIXME Breakout out along with the "Parse" function
+heavy::Value*
+ParserHeavyScheme::LoadEmbeddedEnv(DeclContext* DC) {
+  auto itr = EmbeddedEnvs.find(DC);
+  if (itr != EmbeddedEnvs.end()) return itr->second;
+  Value* Env;
+  if (DC.isTranslationUnit()) {
+    Env = Context.SystemEnvironment;
+  } else {
+    Env = LoadEmbeddedEnv(DC->getParent());
+  }
+  Env = Context.CreatePair(Context.CreateModule(), Env);
+  EmbeddedEnvs[DC] = Env;
+  return Env;
 }
 
 ValueResult ParserHeavyScheme::ParseTopLevelExpr() {

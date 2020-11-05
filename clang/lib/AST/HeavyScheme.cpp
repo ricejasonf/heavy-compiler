@@ -44,8 +44,8 @@ Context::Context()
   : TrashHeap()
   , EvalStack()
   , SystemModule(CreateModule())
-  , EnvStack(CreatePair(CreateEnvironment()))
-  , ErrorHandlerStack(CreateEmpty())
+  , SystemEnvironment(CreateEnvironment(CreatePair(SystemModule)))
+  , EnvStack(SystemEnvironment)
 {
   LoadSystemModule();
 }
@@ -130,8 +130,12 @@ Procedure* Context::CreateProcedure(Pair* P) {
 }
 #endif
 
-Binding* Context::Lookup(Symbol* Name, Value* Stack) {
-  if (isa<Empty>(Stack)) return nullptr;
+// NextStack supports tail recursion with nested Environments
+// The Stack may be an improper list ending with an Environment
+Binding* Context::Lookup(Symbol* Name, Value* Stack, Value* NextStack) {
+  if (isa<Empty>(Stack) && !NextStack) return nullptr;
+  if (isa<Empty>(Stack)) Stack = NextStack;
+  if (isa<Environment>(Stack)) Stack = cast<Environment>(Stack)->EnvStack;
   Value* Result = nullptr;
   Value* V    = cast<Pair>(Stack)->Car;
   Value* Next = cast<Pair>(Stack)->Cdr;
@@ -145,6 +149,7 @@ Binding* Context::Lookup(Symbol* Name, Value* Stack) {
       Result = cast<Module>(V)->Lookup(Name);
       break;
     case Value::Kind::Environment:
+      NextStack = Next;
       Next = cast<Environment>(V)->EnvStack;
       break;
     default:
@@ -156,11 +161,11 @@ Binding* Context::Lookup(Symbol* Name, Value* Stack) {
     }
     return cast<Binding>(Result);
   }
-  return Lookup(Name, Next);
+  return Lookup(Name, Next, NextStack);
 }
 
 // Returns Binding or Undefined on error
-Value* Context::CreateGlobal(Symbol* S, Value *V) {
+Value* Context::CreateGlobal(Symbol* S, Value *V, Value* OrigCall) {
   // A module at the top of the EnvStack is mutable
   Module* M = nullptr;
   Value* EnvRest = nullptr;
@@ -169,7 +174,7 @@ Value* Context::CreateGlobal(Symbol* S, Value *V) {
     EnvRest = cast<Pair>(EnvStack)->Cdr;
     M = dyn_cast<Module>(EnvTop);
   }
-  if (!M) return SetError("Define used in immutable environment", S);
+  if (!M) return SetError("Define used in immutable environment", OrigCall);
 
   // If the name already exists in the current module
   // then it behaves like `set!`
@@ -440,20 +445,9 @@ class Evaluator : public ValueVisitor<Evaluator> {
   clang::heavy::Context& Context;
 
 public:
-  Evaluator(clang::heavy::Context& C, Value* EnvStack = nullptr)
+  Evaluator(clang::heavy::Context& C)
     : Context(C)
-  {
-    if (EnvStack) {
-      OldEnvStack = Context.EnvStack;
-      Context.EnvStack = EnvStack;
-    } else {
-      OldEnvStack = Context.EnvStack;
-    }
-  }
-
-  ~Evaluator() {
-    Context.EnvStack = OldEnvStack;
-  }
+  { }
 
 private:
   void push(Value* V) {
@@ -688,7 +682,7 @@ void eval(Context& C, int Len) {
     EnvStack = C.CreatePair(E);
   }
 
-  Value* Val = syntax_expand(ExprOrDef, EnvStack);
+  Value* Val = syntax_expand(C, ExprOrDef, EnvStack);
   if (C.CheckError()) return;
   Evaluator Eval(C);
   Eval.Visit(Val);
@@ -794,9 +788,9 @@ void append(Context& C, int Len) {
 namespace clang { namespace heavy { namespace builtin_syntax {
 
 Value* define(Context& C, Pair* P) {
-  Pair *P2  = dyn_cast<Pair>(P->Cdr);
-  Symbol* S = nullptr;
-  Value*  V = nullptr;
+  Pair*   P2  = dyn_cast<Pair>(P->Cdr);
+  Symbol* S   = nullptr;
+  Value*  V   = nullptr;
   if (!P2) return C.SetError("Invalid define syntax", P);
   if (Pair* LambdaSpec = dyn_cast<Pair>(P2->Car)) {
     llvm_unreachable("TODO");
@@ -816,7 +810,7 @@ Value* define(Context& C, Pair* P) {
     // TODO refactor to use bytecode or something
     //      this is lame
     return C.CreatePair(C.GetBuiltin("__define"),
-            C.CreatePair(C.CreateGlobal(S, V)));
+            C.CreatePair(C.CreateGlobal(S, V, P)));
   } else {
     // Handle internal definitions inside
     // lambda syntax
@@ -849,22 +843,23 @@ namespace clang { namespace heavy { namespace builtin_core {
     assert(isa<Binding>(V) && "Internal define requires binding object");
     Binding* B = cast<Binding>(V);
     // This is really lame
-    Value* Result = eval(C, B->getValue());
+    Evaluator Eval(C);
+    Value* Result = Eval.Visit(B->getValue());
     C.EvalStack.push(Result);
   }
 }}} // end of namespace clang::heavy::builtin_core
 
 
 namespace clang { namespace heavy {
-Value* syntax_expand(Context& C, Value* V, EnvStack *E) {
-  SyntaxExpander S(C, E);
+Value* syntax_expand(Context& C, Value* V, Value* EnvStack) {
+  SyntaxExpander S(C, EnvStack);
   return S.Visit(V);
 }
 
-Value* eval(Context& C, Value* V, EnvStack* E) {
-  if (E) C.push(E);
+Value* eval(Context& C, Value* V, Value* EnvStack) {
+  if (EnvStack) C.push(EnvStack);
   C.push(V);
-  int ArgCount = E ? 2 : 1;
+  int ArgCount = EnvStack ? 2 : 1;
   builtin::eval(C, ArgCount);
   return C.pop();
 }

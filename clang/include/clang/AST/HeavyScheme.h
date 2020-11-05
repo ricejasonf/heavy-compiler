@@ -33,6 +33,7 @@
 
 namespace clang {
 class Parser;
+class DeclContext;
 }
 
 namespace clang { namespace heavy {
@@ -601,18 +602,18 @@ public:
 class Context {
   AllocatorTy TrashHeap;
 
-public:
-  EvaluationStack EvalStack;
   // EnvStack
   //  - Should be at least one element on top of
   //    an Environment
   //  - Calls to procedures or eval will set the EnvStack
   //    and swap it back upon completion (via RAII)
+public:
+  EvaluationStack EvalStack;
   Module* SystemModule;
+  Environment* SystemEnvironment;
   Value* EnvStack;
-  Value* ErrorHandlerStack;
   Value* Err = nullptr;
-  bool IsTopLevel = true; // used by SyntaxExpander
+  bool IsTopLevel = true;
 
 private:
   //bool ProcessFormals(Value* V, BindingRegion* Region, int& Arity);
@@ -634,8 +635,14 @@ public:
 
   Context();
 
-  void Init() { } // TODO Remove
   void LoadSystemModule();
+
+  // Gets an environment for a clang::DeclContext
+  // or it return SystemEnvironment if none exists
+  void LoadEmbeddedEnv(DeclContext*);
+  // Saves the current EnvStack in a new Environment
+  // and associates it with a DeclContext
+  void SaveEmbeddedEnv(DeclContext*);
 
   // Returns a Builtin from the SystemModule
   // for use within builtin syntaxes that wish
@@ -653,7 +660,7 @@ public:
   // Lookup
   //  - Takes a Symbol or nullptr
   //  - Returns a matching Binder or nullptr
-  static Binding* Lookup(Symbol* Name, Value* Stack);
+  static Binding* Lookup(Symbol* Name, Value* Stack, Value* NextStack);
   Binding* Lookup(Symbol* Name) {
     return Lookup(Name, EnvStack);
   }
@@ -663,7 +670,7 @@ public:
     return Lookup(S);
   }
 
-  Value* CreateGlobal(Symbol* S, Value *V);
+  Value* CreateGlobal(Symbol* S, Value* V, Value* OrigCall);
 
   // Check Error
   //  - Returns true if there is an error or exception
@@ -761,8 +768,8 @@ public:
     return new (TrashHeap) Symbol(V, Loc);
   }
   Vector*   CreateVector(ArrayRef<Value*> Xs);
-  Environment* CreateEnvironment() {
-    return new (TrashHeap) Environment(CreatePair(SystemModule));
+  Environment* CreateEnvironment(Value* Stack) {
+    return new (TrashHeap) Environment(Stack);
   }
   Typename* CreateTypename(QualType QT) {
     return new (TrashHeap) Typename(QT);
@@ -795,7 +802,7 @@ public:
     return new (TrashHeap) Exception(V);
   }
 
-  Module*  CreateModule() {
+  Module* CreateModule() {
     return new (TrashHeap) Module(TrashHeap);
   }
   Binding* CreateBinding(Symbol* S, Value* V) {

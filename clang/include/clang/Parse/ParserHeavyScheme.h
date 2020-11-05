@@ -18,11 +18,16 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Parse/Parser.h"
 #include <string>
+#include <unordered_map>
 
 namespace clang {
 
 class Parser;
+class DeclContext;
 
+// TODO Breakout the actual parsing stuff
+//      that only depends on Token and SourceLocation
+//      and maybe Preprocessor
 class ParserHeavyScheme {
   using ValueResult = heavy::ValueResult;
   using Value = heavy::Value;
@@ -32,6 +37,10 @@ class ParserHeavyScheme {
   Token Tok = {};
   SourceLocation PrevTokLocation;
   std::string LiteralResult = {};
+  std::unordered_map<DeclContext*, Value*> EmbeddedEnvs;
+
+  // Gets or creates an environment for a clang::DeclContext
+  Value* LoadEmbeddedEnv(DeclContext*);
 
   SourceLocation ConsumeToken() {
     PrevTokLocation = Tok.getLocation();
