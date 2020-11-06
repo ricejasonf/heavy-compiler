@@ -831,8 +831,11 @@ public:
     return new (TrashHeap) BuiltinSyntax(Fn);
   }
 
-  Error* CreateError(SourceLocation Loc, Value* Message, Pair* Irritants) {
+  Error* CreateError(SourceLocation Loc, Value* Message, Value* Irritants) {
     return new (TrashHeap) Error(Loc, Message, Irritants);
+  }
+  Error* CreateError(SourceLocation Loc, StringRef Str, Value* Irritants) {
+    return CreateError(Loc, CreateString(Str), Irritants);
   }
 
   Exception* CreateException(Value* V) {

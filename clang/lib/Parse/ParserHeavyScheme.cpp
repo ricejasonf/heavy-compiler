@@ -107,52 +107,6 @@ namespace {
   }
 }
 
-// FIXME Breakout this bootstrapping code
-//       to make the real parsing stand alone
-bool ParserHeavyScheme::Parse() {
-  PP.InitHeavySchemeLexer();
-
-  ConsumeToken();
-  if (!TryConsumeToken(tok::l_brace)) {
-    CxxParser.Diag(Tok, diag::err_expected) << tok::l_brace;
-    return true;
-  }
-
-  // Load the environment for the current DeclContext
-  DeclContext* DC = CxxParser.getActions().CurContext;
-  Context.EnvStack = LoadEmbeddedEnv(DC);
-
-  ValueResult Result;
-  bool HasError = false;
-  while (true) {
-    Result = ParseTopLevelExpr();
-    // Keep parsing until we find the end
-    // brace (represented by ValueEmpty here)
-    if (Result.isUnset()) break;
-    if (Result.isInvalid()) {
-      ConsumeToken();
-      HasError = true;
-    }
-    if (HasError) continue;
-
-    Value* Val = eval(Context, Result.get());
-
-    if (Context.CheckError()) {
-      HasError = true;
-      CxxParser.Diag(Context.getErrorLocation(), diag::err_heavy_scheme)
-        << Context.getErrorMessage();
-    } else {
-      // TEMP dump the result
-      write(llvm::errs(), Val);
-      llvm::errs() << '\n';
-    }
-  };
-
-  // Return control to C++ Lexer
-  PP.FinishHeavySchemeLexer();
-  return Result.isInvalid();
-}
-
 // FIXME Breakout out along with the "Parse" function
 heavy::Value*
 ParserHeavyScheme::LoadEmbeddedEnv(DeclContext* DC) {
@@ -207,24 +161,20 @@ ValueResult ParserHeavyScheme::ParseExpr() {
   case tok::heavy_unquote_splicing:
     return ParseExprAbbrev("unquote-splicing");
   case tok::r_paren: {
-    CxxParser.Diag(Tok, diag::err_heavy_scheme)
-      << "extraneous closing paren (')')";
+    SetError(Tok, "extraneous closing paren (')')");
     return ValueError();
   }
   case tok::r_square: {
-    CxxParser.Diag(Tok, diag::err_heavy_scheme)
-      << "extraneous closing bracket (']')";
+    SetError(Tok, "extraneous closing bracket (']')");
     return ValueError();
   }
   case tok::r_brace: {
     // extraneous brace should end parsing
-    CxxParser.Diag(Tok, diag::err_heavy_scheme)
-      << "extraneous closing brace ('}')";
+    SetError(Tok, "extraneous closing brace ('}')");
     return ValueEmpty();
   }
   default: {
-    CxxParser.Diag(Tok, diag::err_heavy_scheme)
-      << "expected expression";
+    SetError(Tok, "expected expression");
     return ValueError();
   }
   }

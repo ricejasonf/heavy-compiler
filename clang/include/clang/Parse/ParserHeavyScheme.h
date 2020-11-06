@@ -37,23 +37,6 @@ class ParserHeavyScheme {
   SourceLocation PrevTokLocation;
   std::string LiteralResult = {};
 
-  // Gets or creates an environment for a clang::DeclContext
-  Value* LoadEmbeddedEnv(DeclContext*);
-
-  SourceLocation ConsumeToken() {
-    PrevTokLocation = Tok.getLocation();
-    PP.LexHeavyScheme(Tok);
-    return PrevTokLocation;
-  }
-
-  bool TryConsumeToken(tok::TokenKind Expected) {
-    if (Tok.isNot(Expected))
-      return false;
-    ConsumeToken();
-    return true;
-  }
-
-  ValueResult ParseTopLevelExpr();
   ValueResult ParseExpr();
   ValueResult ParseExprAbbrev(char const* Name);
 
@@ -71,6 +54,11 @@ class ParserHeavyScheme {
   ValueResult ParseDottedCdr(Token const& StartTok);
   ValueResult ParseSpecialEscapeSequence();
 
+  void SetError(Token& Tok, StringRef Msg) {
+    SourceLocation Loc = Tok.getLocation();
+    Context.SetError(Context.CreateError(Loc, Msg, Context.CreateEmpty()));
+  }
+
 public:
   ParserHeavyScheme(Preprocessor& PP, heavy::Context& C, Parser& P)
     : PP(PP)
@@ -81,11 +69,31 @@ public:
     // C++ parser
   }
 
+  // Gets or creates an environment for a clang::DeclContext
+  Value* LoadEmbeddedEnv(DeclContext*);
+
+  ValueResult ParseTopLevelExpr();
+
+  SourceLocation ConsumeToken() {
+    PrevTokLocation = Tok.getLocation();
+    PP.LexHeavyScheme(Tok);
+    return PrevTokLocation;
+  }
+
+  bool TryConsumeToken(tok::TokenKind Expected) {
+    if (Tok.isNot(Expected))
+      return false;
+    ConsumeToken();
+    return true;
+  }
+
+#if 0 // TODO if we hoist to ParseDeclHeavy.cpp
   // Parses until the ending r_brace
   // and evaluates top level expressions.
   // Expects that the first token is heavy_scheme
   // Returns true if there was an error
   bool Parse();
+#endif
 };
 
 }  // end namespace clang
