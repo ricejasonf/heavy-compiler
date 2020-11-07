@@ -715,11 +715,13 @@ public:
     return Err ? true : false;
   }
 
+  void ClearError() { Err = nullptr; }
+
   Value* SetError(Value* E) {
     assert(isa<Error>(E) || isa<Exception>(E));
     Err = E;
     EvalStack.push(E);
-    return CreateEmpty();
+    return CreateUndefined();
   }
 
   Value* SetError(SourceLocation Loc, String* S, Value* V) {

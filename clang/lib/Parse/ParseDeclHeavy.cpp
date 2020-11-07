@@ -59,11 +59,7 @@ bool Parser::ParseHeavyScheme() {
     Result = P.ParseTopLevelExpr();
     if (Result.isUnset()) break;
     if (HasError) continue;
-    if (Result.isInvalid()) {
-      // TODO the parser should be skipping its own tokens
-      P.ConsumeToken();
-      continue;
-    } else {
+    if (Result.isUsable()) {
       heavy::Value* Val = eval(Context, Result.get());
       // TODO just discard the value without dumping it
       if (!Context.CheckError()) Val->dump();
@@ -73,11 +69,17 @@ bool Parser::ParseHeavyScheme() {
   // Return control to C++ Lexer
   PP.FinishHeavySchemeLexer();
 
+  // Allow subsequent heavy_scheme
+  // instances to render useful errors
+  // as well
+  Context.ClearError();
+
+
   // The Lexers position has been changed
   // so we need to re-prime the look-ahead
   this->ConsumeToken();
 
-  return Result.isInvalid();
+  return HasError;
 }
 
 Decl*

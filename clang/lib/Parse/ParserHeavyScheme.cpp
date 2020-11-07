@@ -162,19 +162,23 @@ ValueResult ParserHeavyScheme::ParseExpr() {
     return ParseExprAbbrev("unquote-splicing");
   case tok::r_paren: {
     SetError(Tok, "extraneous closing paren (')')");
+    ConsumeToken();
     return ValueError();
   }
   case tok::r_square: {
     SetError(Tok, "extraneous closing bracket (']')");
+    ConsumeToken();
     return ValueError();
   }
   case tok::r_brace: {
     // extraneous brace should end parsing
     SetError(Tok, "extraneous closing brace ('}')");
+    ConsumeToken();
     return ValueEmpty();
   }
   default: {
     SetError(Tok, "expected expression");
+    ConsumeToken();
     return ValueError();
   }
   }
